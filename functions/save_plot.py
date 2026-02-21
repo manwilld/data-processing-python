@@ -26,8 +26,8 @@ def save_plot(fig, name, run_name, plot_number, output_dir):
     svg_path = os.path.join(output_dir, f"{filename}.svg")
     png_path = os.path.join(output_dir, f"{filename}.png")
 
-    fig.savefig(svg_path, format='svg', bbox_inches='tight')
-    fig.savefig(png_path, dpi=150, bbox_inches='tight')
+    fig.savefig(svg_path, format='svg', facecolor='white')
+    fig.savefig(png_path, dpi=150, facecolor='white')
     print(png_path)
     plt.close(fig)
     return plot_number + 1

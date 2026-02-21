@@ -63,6 +63,24 @@ def main():
                     all_data[col] = axis_df[col].values
 
         resonance_data = pd.DataFrame(all_data)
+
+        # Reorder columns to match MATLAB: grouped by sensor, interleaved axes
+        # Order: Frequency, Table_X/Y/Z, UUT_1_Controller_X/Y/Z, ...
+        desired_order = ['Frequency']
+        # Table first
+        for axis in axes:
+            col = f'Table_{axis}'
+            if col in resonance_data.columns:
+                desired_order.append(col)
+        # Then accels in config order
+        for accel in accels_config:
+            for axis in axes:
+                col = f'{accel["uut"]}_{accel["name"]}_{axis}'
+                if col in resonance_data.columns:
+                    desired_order.append(col)
+        # Only keep columns that exist
+        desired_order = [c for c in desired_order if c in resonance_data.columns]
+        resonance_data = resonance_data[desired_order]
     else:
         # Process transfer function from time-domain data
         from functions.parse_csv import parse_seismic_csv

@@ -1,53 +1,44 @@
 """Save TRS data to Excel using openpyxl."""
 
 import os
-import shutil
 import numpy as np
-from openpyxl import load_workbook, Workbook
+from openpyxl import Workbook
 
 
 def save_trs(run_name, axes, freq06_all, TRS06_all, seismic, output_dir):
     """Save TRS vs RRS data to Excel file.
 
-    Parameters
-    ----------
-    run_name : str
-    axes : list of str
-    freq06_all : dict
-        Keys like 'Table_X', values are freq06 arrays.
-    TRS06_all : dict
-        Keys like 'Table_X', values are TRS06 arrays.
-    seismic : dict
-        Contains RRS_h, RRS_v, freq72, lowCutoff, lowResonance.
-    output_dir : str
+    Layout matches MATLAB baseline:
+      Cols A-C: X Direction (Freq, RRS, TRS)
+      Cols D-F: Y Direction
+      Cols G-I: Z Direction
+      Cols J:   (empty / D Direction if present)
+      Col K:    Low resonance (row 3), Cutoff (row 4)
+      Col L:    Text labels (rows 3, 4)
     """
     # Column mapping: axis -> starting column (0-indexed)
-    axis_to_col = {'X': 0, 'Y': 3, 'D': 6, 'Z': 9}
+    axis_to_col = {'X': 0, 'Y': 3, 'Z': 6, 'D': 9}
 
     output_file = os.path.join(output_dir, f'{run_name}_Table_TRSvsRRS.xlsx')
 
-    # Try to copy template, or create new workbook
-    template_path = os.path.join(os.path.dirname(os.path.dirname(__file__)),
-                                 'templates', 'TRSvsRRS_Template.xlsx')
-    if os.path.exists(template_path):
-        shutil.copy2(template_path, output_file)
-        wb = load_workbook(output_file)
-        ws = wb.active
-    else:
-        wb = Workbook()
-        ws = wb.active
-        # Create headers
-        headers = ['Freq_X', 'RRS_X', 'TRS_X',
-                   'Freq_Y', 'RRS_Y', 'TRS_Y',
-                   'Freq_D', 'RRS_D', 'TRS_D',
-                   'Freq_Z', 'RRS_Z', 'TRS_Z',
-                   '', 'Low Resonance / Cutoff']
-        for i, h in enumerate(headers):
-            ws.cell(row=1, column=i + 1, value=h)
-        # Row 2 is sub-headers
-        sub_headers = ['Hz', 'g', 'g'] * 4 + ['', '']
-        for i, h in enumerate(sub_headers):
-            ws.cell(row=2, column=i + 1, value=h)
+    wb = Workbook()
+    ws = wb.active
+
+    # Direction labels for header row 1
+    direction_labels = {'X': 'X Direction', 'Y': 'Y Direction',
+                        'Z': 'Z Direction', 'D': 'D Direction'}
+
+    # Write header row 1
+    for axis in axes:
+        col_start = axis_to_col.get(axis, 0)
+        ws.cell(row=1, column=col_start + 1, value=direction_labels.get(axis))
+
+    # Write header row 2
+    for axis in axes:
+        col_start = axis_to_col.get(axis, 0)
+        ws.cell(row=2, column=col_start + 1, value='Freq.\n(Hz)')
+        ws.cell(row=2, column=col_start + 2, value='RRS\n(g)')
+        ws.cell(row=2, column=col_start + 3, value='TRS\n(g)')
 
     freq72 = seismic['freq72']
 
@@ -65,7 +56,7 @@ def save_trs(run_name, axes, freq06_all, TRS06_all, seismic, output_dir):
         else:
             RRS_full = seismic['RRS_v']
 
-        # Interpolate RRS at freq06 points
+        # Match frequencies
         current_RRS = np.interp(current_freq06, freq72, RRS_full)
 
         # Filter: only include frequencies > 1.0 Hz
@@ -81,7 +72,7 @@ def save_trs(run_name, axes, freq06_all, TRS06_all, seismic, output_dir):
 
         # Write to Excel
         col_start = axis_to_col.get(axis, 0)
-        row_start = 3  # Data starts at row 3
+        row_start = 3
 
         for i in range(len(current_freq06)):
             ws.cell(row=row_start + i, column=col_start + 1,
@@ -91,9 +82,11 @@ def save_trs(run_name, axes, freq06_all, TRS06_all, seismic, output_dir):
             ws.cell(row=row_start + i, column=col_start + 3,
                     value=float(current_TRS06[i]))
 
-    # Write low resonance and cutoff
-    ws.cell(row=3, column=14, value=seismic['lowResonance'])  # N3
-    ws.cell(row=4, column=14, value=seismic['lowCutoff'])     # N4
+    # Write low resonance and cutoff annotations (K/L columns, matching baseline)
+    ws.cell(row=3, column=11, value=seismic['lowResonance'])
+    ws.cell(row=3, column=12, value='<- Lowest Resonance')
+    ws.cell(row=4, column=11, value=seismic['lowCutoff'])
+    ws.cell(row=4, column=12, value='<- Cuttoff Frequency')
 
     os.makedirs(output_dir, exist_ok=True)
     wb.save(output_file)

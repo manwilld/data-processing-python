@@ -1,25 +1,18 @@
-"""TRS vs RRS all-axes overlay plot."""
+"""TRS vs RRS all-axes overlay plot matching MATLAB style."""
 
 import numpy as np
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
+import matplotlib.ticker as ticker
 
 
 def plot_trs_all(run_name, accel_name, axes, freq72, RRS_h, RRS_v,
                  Aflx_h, Aflx_v, Arig_h, Arig_v, damping, low_cutoff,
                  freq06_dict, TRS06_dict, plot_options):
-    """Create TRS vs RRS overlay plot for all axes.
-
-    Parameters
-    ----------
-    freq06_dict : dict
-        Keys are axis names ('X', 'Y', 'Z'), values are freq06 arrays.
-    TRS06_dict : dict
-        Keys are axis names, values are TRS06 arrays.
-    """
+    """Create TRS vs RRS overlay plot for all axes."""
     wide = plot_options.get('wide', 6.5)
-    tall = plot_options.get('tall', 2.7)
+    tall = plot_options.get('tall_trs', 2.7)
     font_name = plot_options.get('font_name', 'Arial')
     font_size_title = plot_options.get('font_size_title', 11)
     font_size_axes = plot_options.get('font_size_axes', 11)
@@ -53,16 +46,22 @@ def plot_trs_all(run_name, accel_name, axes, freq72, RRS_h, RRS_v,
 
     y_min = min(np.floor(Arig_v * 0.85 * 10) / 10, 0.9)
 
-    fig, ax = plt.subplots(figsize=(wide, tall))
+    fig = plt.figure(figsize=(wide, tall))
+    fig.patch.set_facecolor('white')
+    ax = fig.add_subplot(111)
+    ax.set_facecolor('white')
+
     ax.set_xscale('log')
     ax.set_yscale('log')
+
     ax.set_xticks(x_ticks)
-    ax.set_xticklabels([str(t) for t in x_ticks])
+    ax.set_xticklabels([str(t) for t in x_ticks], fontsize=font_size_ticks)
+    ax.xaxis.set_minor_locator(ticker.NullLocator())
     ax.set_yticks(y_ticks)
-    ax.set_yticklabels([str(t) for t in y_ticks])
-    ax.minorticks_on()
-    ax.grid(True, which='both', linewidth=0.5)
-    ax.tick_params(labelsize=font_size_ticks)
+    ax.set_yticklabels([str(t) for t in y_ticks], fontsize=font_size_ticks)
+    ax.yaxis.set_minor_locator(ticker.NullLocator())
+
+    ax.grid(True, which='major', linewidth=0.5)
 
     line_colors = {'X': 'k', 'Y': 'm', 'D': 'g', 'Z': 'c'}
 
@@ -114,11 +113,20 @@ def plot_trs_all(run_name, accel_name, axes, freq72, RRS_h, RRS_v,
         title = f"TRS vs. RRS: {accel_name.replace('_', ' ')} ({run_name.replace('_', ' ')})"
     else:
         title = f"TRS: {accel_name.replace('_', ' ')} ({run_name.replace('_', ' ')})"
-    ax.set_title(title, fontname=font_name, fontsize=font_size_title)
-    ax.set_xlabel('Frequency (Hz)', fontname=font_name, fontsize=font_size_axes)
+    ax.set_title(title, fontname=font_name, fontsize=font_size_title,
+                 fontweight='bold')
+    ax.set_xlabel('Frequency (Hz)', fontname=font_name, fontsize=font_size_axes,
+                   fontweight='bold')
     ylabel = f'Spectral Acceleration (g)\n{int(damping*100)}% Damping'
-    ax.set_ylabel(ylabel, fontname=font_name, fontsize=font_size_axes)
+    ax.set_ylabel(ylabel, fontname=font_name, fontsize=font_size_axes,
+                   fontweight='bold')
     ax.legend(loc='upper left', fontsize=font_size_legend)
 
-    fig.tight_layout()
+    # Tick direction: inward on all 4 sides, full box
+    ax.tick_params(axis='both', which='both', direction='in',
+                   top=True, right=True, length=4, width=0.5)
+    ax.spines['top'].set_visible(True)
+    ax.spines['right'].set_visible(True)
+
+    fig.subplots_adjust(left=0.130, right=0.904, top=0.919, bottom=0.160)
     return fig

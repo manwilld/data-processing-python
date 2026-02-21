@@ -1,35 +1,17 @@
-"""TRS vs RRS plot (single accelerometer)."""
+"""TRS vs RRS plot (single accelerometer) matching MATLAB plotTRS.m."""
 
 import numpy as np
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
+import matplotlib.ticker as ticker
 
 
 def plot_trs(run_name, accel_name, freq72, RRS, Aflx, Arig,
              freq06, TRS06, damping, low_cutoff, plot_options):
-    """Create TRS vs RRS plot.
-
-    Parameters
-    ----------
-    run_name, accel_name : str
-    freq72 : array
-        Full 1/72 octave frequency array.
-    RRS : array
-        Required Response Spectrum at 1/72 octave.
-    Aflx, Arig : float
-    freq06, TRS06 : array
-        Optimized 1/6 octave frequency and TRS.
-    damping : float
-    low_cutoff : float
-    plot_options : dict
-
-    Returns
-    -------
-    matplotlib.figure.Figure
-    """
+    """Create TRS vs RRS plot matching MATLAB plotTRS.m output."""
     wide = plot_options.get('wide', 6.5)
-    tall = plot_options.get('tall', 2.7)
+    tall = plot_options.get('tall_trs', 2.7)
     font_name = plot_options.get('font_name', 'Arial')
     font_size_title = plot_options.get('font_size_title', 11)
     font_size_axes = plot_options.get('font_size_axes', 11)
@@ -58,39 +40,48 @@ def plot_trs(run_name, accel_name, freq72, RRS, Aflx, Arig,
 
     y_min = min(np.floor(Arig * 0.85 * 10) / 10, 0.9)
 
-    fig, ax = plt.subplots(figsize=(wide, tall))
+    fig = plt.figure(figsize=(wide, tall))
+    fig.patch.set_facecolor('white')
+    ax = fig.add_subplot(111)
+    ax.set_facecolor('white')
 
     ax.set_xscale('log')
     ax.set_yscale('log')
-    ax.set_xticks(x_ticks)
-    ax.set_xticklabels([str(t) for t in x_ticks])
-    ax.set_yticks(y_ticks)
-    ax.set_yticklabels([str(t) for t in y_ticks])
-    ax.minorticks_on()
-    ax.grid(True, which='both', linewidth=0.5)
-    ax.tick_params(labelsize=font_size_ticks)
 
-    # Plot TRS
-    ax.loglog(freq06, TRS06, 'k', linewidth=1, label=accel_name.replace('_', ' '))
+    # Set custom ticks and suppress minor ticks
+    ax.set_xticks(x_ticks)
+    ax.set_xticklabels([str(t) for t in x_ticks], fontsize=font_size_ticks)
+    ax.xaxis.set_minor_locator(ticker.NullLocator())
+    ax.set_yticks(y_ticks)
+    ax.set_yticklabels([str(t) for t in y_ticks], fontsize=font_size_ticks)
+    ax.yaxis.set_minor_locator(ticker.NullLocator())
+
+    ax.grid(True, which='major', linewidth=0.5)
+
+    # Plot TRS — black solid (DisplayName = accelName with underscores)
+    ax.loglog(freq06, TRS06, 'k', linewidth=1, label=accel_name)
 
     if is_table:
+        # RRS — blue dashed
         ax.loglog(freq72, RRS, '--b', linewidth=1.5, label='RRS')
+        # 0.9*RRS — red dashed
         ax.loglog(freq72, 0.9 * RRS, '--r', linewidth=0.5, label='0.9*RRS')
+        # 1.3*RRS — yellow dashed (no legend)
         ax.loglog(freq72, 1.3 * RRS, '--y', linewidth=0.5)
 
-        # Aflx reference line and text
+        # Aflx text and line (light blue)
         ax.text(x_min * 1.1, Aflx, f'Aflx = {Aflx:.2f}', color='blue',
                 ha='left', va='top', fontsize=font_size_text)
         ax.plot([freq72[0], 1.3], [Aflx, Aflx], '--',
                 color=[0.7, 0.7, 1], linewidth=0.25)
 
-        # Arig reference line and text
+        # Arig text and line (light blue)
         ax.text(10, Arig, f'Arig = {Arig:.2f}', color='blue',
                 ha='left', va='top', fontsize=font_size_text)
         ax.plot([8.3, freq72[-1]], [Arig, Arig], '--',
                 color=[0.7, 0.7, 1], linewidth=0.25)
 
-        # Low cutoff frequency
+        # Low cutoff vertical (light blue)
         ax.axvline(x=low_cutoff, color=[0.7, 0.7, 1], linestyle='--', linewidth=0.25)
         ax.text(low_cutoff, y_min, f' {low_cutoff:.1f}-Hz Lower Limit',
                 color='blue', ha='left', va='bottom', fontsize=font_size_text)
@@ -102,11 +93,20 @@ def plot_trs(run_name, accel_name, freq72, RRS, Aflx, Arig,
         title = f"TRS vs. RRS: {accel_name.replace('_', ' ')} ({run_name.replace('_', ' ')})"
     else:
         title = f"TRS: {accel_name.replace('_', ' ')} ({run_name.replace('_', ' ')})"
-    ax.set_title(title, fontname=font_name, fontsize=font_size_title)
-    ax.set_xlabel('Frequency (Hz)', fontname=font_name, fontsize=font_size_axes)
+    ax.set_title(title, fontname=font_name, fontsize=font_size_title,
+                 fontweight='bold')
+    ax.set_xlabel('Frequency (Hz)', fontname=font_name, fontsize=font_size_axes,
+                   fontweight='bold')
     ylabel = f'Spectral Acceleration (g)\n{int(damping*100)}% Damping'
-    ax.set_ylabel(ylabel, fontname=font_name, fontsize=font_size_axes)
+    ax.set_ylabel(ylabel, fontname=font_name, fontsize=font_size_axes,
+                   fontweight='bold')
     ax.legend(loc='upper left', fontsize=font_size_legend)
 
-    fig.tight_layout()
+    # Tick direction: inward on all 4 sides, full box
+    ax.tick_params(axis='both', which='both', direction='in',
+                   top=True, right=True, length=4, width=0.5)
+    ax.spines['top'].set_visible(True)
+    ax.spines['right'].set_visible(True)
+
+    fig.subplots_adjust(left=0.130, right=0.904, top=0.919, bottom=0.160)
     return fig

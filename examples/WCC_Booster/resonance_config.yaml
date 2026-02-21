@@ -72,7 +72,7 @@ output_subdirs:
 
 plot:
   wide: 6.5
-  tall: 2.7
+  tall_res: 2.70
   font_name: "Arial"
   font_size_title: 11
   font_size_axes: 11

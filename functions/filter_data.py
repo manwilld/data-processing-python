@@ -22,6 +22,6 @@ def filter_th(accel, sample_rate, order, cutoff_hz):
     numpy.ndarray
         Filtered acceleration signal.
     """
-    Wn = cutoff_hz / (sample_rate / 2)
+    Wn = cutoff_hz / sample_rate / 2
     b, a = butter(order, Wn, btype='low')
     return filtfilt(b, a, accel)

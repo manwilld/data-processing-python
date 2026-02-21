@@ -53,30 +53,34 @@ accels:
   - name: "UUT_2_Pump"
     uut: "UUT_2"
 
-# Filter options per channel (null for unfiltered)
+# Filter options per channel (from Run_1_filters.mat)
+# X/Y channels: order=3, cutoff=699.5 Hz
+# Z channels: order=3, cutoff=200.0 Hz
 filters:
-  Table_X: null
-  Table_Y: null
-  Table_Z: null
-  UUT_1_Controller_X: {order: 3, cutoff_hz: 100}
-  UUT_1_Controller_Y: {order: 3, cutoff_hz: 100}
-  UUT_1_Controller_Z: {order: 3, cutoff_hz: 100}
-  UUT_1_Pump_X: {order: 3, cutoff_hz: 100}
-  UUT_1_Pump_Y: {order: 3, cutoff_hz: 100}
-  UUT_1_Pump_Z: {order: 3, cutoff_hz: 100}
-  UUT_2_Controller_X: {order: 3, cutoff_hz: 100}
-  UUT_2_Controller_Y: {order: 3, cutoff_hz: 100}
-  UUT_2_Controller_Z: {order: 3, cutoff_hz: 100}
-  UUT_2_Pump_X: {order: 3, cutoff_hz: 100}
-  UUT_2_Pump_Y: {order: 3, cutoff_hz: 100}
-  UUT_2_Pump_Z: {order: 3, cutoff_hz: 100}
+  Table_X: {order: 3, cutoff_hz: 699.5}
+  Table_Y: {order: 3, cutoff_hz: 699.5}
+  Table_Z: {order: 3, cutoff_hz: 200.0}
+  UUT_1_Controller_X: {order: 3, cutoff_hz: 699.5}
+  UUT_1_Controller_Y: {order: 3, cutoff_hz: 699.5}
+  UUT_1_Controller_Z: {order: 3, cutoff_hz: 200.0}
+  UUT_1_Pump_X: {order: 3, cutoff_hz: 699.5}
+  UUT_1_Pump_Y: {order: 3, cutoff_hz: 699.5}
+  UUT_1_Pump_Z: {order: 3, cutoff_hz: 200.0}
+  UUT_2_Controller_X: {order: 3, cutoff_hz: 699.5}
+  UUT_2_Controller_Y: {order: 3, cutoff_hz: 699.5}
+  UUT_2_Controller_Z: {order: 3, cutoff_hz: 200.0}
+  UUT_2_Pump_X: {order: 3, cutoff_hz: 699.5}
+  UUT_2_Pump_Y: {order: 3, cutoff_hz: 699.5}
+  UUT_2_Pump_Z: {order: 3, cutoff_hz: 200.0}
 
 # Plot options
 plot:
   wide: 6.5
-  tall: 2.7
-  tall_th: 2.0
-  tall_th_unit: 1.8
+  tall_trs: 2.70
+  tall_th_table: 2.00
+  tall_th_uut: 1.80
+  tall_cc: 2.70
+  tall_ch: 2.70
   font_name: "Arial"
   font_size_title: 11
   font_size_axes: 11

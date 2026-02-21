@@ -31,14 +31,10 @@ def parse_seismic_csv(filepath, column_mapping, time_unit='ms',
         Columns: Time (seconds, starting at 0) + mapped column names.
     """
     # Read full CSV to find the time-domain header
-    # The raw CSV may have a BOM character
     with open(filepath, 'r', encoding='utf-8-sig') as f:
         first_line = f.readline()
 
     # Parse header to find column positions
-    # Use pandas to read, handling quoted headers
-    # First, find which row has 'Time' as first column
-    # In seismic CSVs, the first row IS the time-domain header
     header_cols = [h.strip().strip('"') for h in first_line.split(',')]
 
     # Find the 'Time' column (should be first)
@@ -94,13 +90,19 @@ def parse_seismic_csv(filepath, column_mapping, time_unit='ms',
         t0 = result['Time'].iloc[0]
         result['Time'] = result['Time'] - t0
 
-    # Normalize time to uniform spacing
+    # Normalize time to uniform spacing using integer sample rate
     if len(result) > 1:
-        dt = result['Time'].iloc[1] - result['Time'].iloc[0]
+        dt_raw = result['Time'].iloc[1] - result['Time'].iloc[0]
+        sample_rate = round(1.0 / dt_raw)
+        dt = 1.0 / sample_rate
         result['Time'] = np.arange(len(result)) * dt
 
-    # Trim to duration
-    if duration is not None and len(result) > 0:
+    # Trim to duration (use sample count to avoid floating-point fence-post)
+    if duration is not None and len(result) > 1:
+        dt = result['Time'].iloc[1] - result['Time'].iloc[0]
+        n_pts = int(round(duration / dt)) + 1
+        result = result.iloc[:min(n_pts, len(result))].reset_index(drop=True)
+    elif duration is not None and len(result) > 0:
         mask = result['Time'] <= duration
         result = result[mask].reset_index(drop=True)
 
