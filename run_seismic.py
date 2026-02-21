@@ -12,6 +12,7 @@ import yaml
 from functions.parse_csv import parse_seismic_csv
 from functions.calc_seismic_parameters import calc_seismic_parameters
 from functions.process_seismic_run import process_seismic_run
+from functions.plot_style import setup_plot_style
 
 
 def main():
@@ -23,8 +24,11 @@ def main():
     with open(args.config, 'r') as f:
         config = yaml.safe_load(f)
 
+    # Configure plot style (font fallback, rcParams)
+    font_used = setup_plot_style(config.get('plot', {}).get('font_name'))
     print(f"Processing seismic run: {config['run_name']}")
     print(f"Config: {args.config}")
+    print(f"Font: {font_used}")
 
     # Calculate seismic parameters
     seismic = calc_seismic_parameters(config)
@@ -49,7 +53,7 @@ def main():
     print(f'Trimmed data saved to {trimmed_csv}')
 
     # Process seismic run (filter, TRS, plots, Excel)
-    process_seismic_run(seismic, config, seismic_data, output_dir)
+    process_seismic_run(seismic, config, seismic_data, output_dir, script_dir=script_dir)
 
     print('\nDone!')
 

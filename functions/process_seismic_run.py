@@ -15,7 +15,7 @@ from .save_plot import save_plot
 from .save_trs import save_trs
 
 
-def process_seismic_run(seismic, config, seismic_data, output_dir):
+def process_seismic_run(seismic, config, seismic_data, output_dir, script_dir=None):
     """Process seismic run: filter, compute TRS, generate all plots.
 
     Parameters
@@ -139,8 +139,9 @@ def process_seismic_run(seismic, config, seismic_data, output_dir):
             plot_number = save_plot(fig, f'TRSvsRRS_All_{accel_name_full}',
                                    run_name, plot_number, output_dir)
 
-    # Save TRS to Excel
-    save_trs(run_name, axes, freq06_all, TRS06_all, seismic, output_dir)
+    # Save TRS to Excel (in script_dir to match MATLAB, falls back to output_dir)
+    excel_dir = script_dir if script_dir else output_dir
+    save_trs(run_name, axes, freq06_all, TRS06_all, seismic, excel_dir)
 
     # Cross-correlation
     table_data = {k: v for k, v in filtered_data.items() if k.startswith('Table_')}

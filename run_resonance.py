@@ -14,6 +14,7 @@ import pandas as pd
 from functions.parse_csv import parse_resonance_csv
 from functions.plot_transfer import plot_transfer
 from functions.save_plot import save_plot
+from functions.plot_style import setup_plot_style
 
 
 def main():
@@ -25,6 +26,8 @@ def main():
     with open(args.config, 'r') as f:
         config = yaml.safe_load(f)
 
+    # Configure plot style (font fallback, rcParams)
+    setup_plot_style(config.get('plot', {}).get('font_name'))
     print(f"Processing resonance run: {config['run_name']}")
     print(f"Config: {args.config}")
 
@@ -82,13 +85,15 @@ def main():
     # Get unique UUTs
     uuts = list(dict.fromkeys(a['uut'] for a in accels_config))
 
+    # Global plot counter across all UUTs (matches MATLAB behavior)
+    plot_number = 1
+
     # Generate transfer function plots for each UUT
     for uut in uuts:
         uut_output_subdir = output_subdirs.get(uut, f'{uut}_Plots_Resonance')
         uut_output_dir = os.path.join(script_dir, uut_output_subdir)
         os.makedirs(uut_output_dir, exist_ok=True)
 
-        plot_number = 1
         uut_accels = [a for a in accels_config if a['uut'] == uut]
 
         for accel_info in uut_accels:
