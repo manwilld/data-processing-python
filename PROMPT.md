@@ -1,435 +1,307 @@
-# Data Processing Python — Build Task
+# Data Processing Python — Fidelity Pass
 
 ## Goal
-Port the MATLAB seismic/resonance data processing pipeline to a fully headless Python library.
-Replace all GUI interactions with YAML config files. Plots saved as SVG (vector) and PNG.
+Make the Python output match the MATLAB baseline as closely as possible.
+The MATLAB baseline lives at:
+`/mnt/dropbox/_OpenClaw/data-processing-example/_matlab_baseline/`
+**DO NOT modify or delete anything in _matlab_baseline/.**
 
-## Source Reference
-- MATLAB source code: `/root/data-processing/` (read this for algorithms and plot styles)
-- MATLAB library path: `/root/structural-calcs-python/` (Python lib already exists, for style reference)
-- Example project: `/mnt/dropbox/_OpenClaw/data-processing-example/`
-  - Input files: `Seismic_WCC_Booster_ETL.m`, `Resonance_WCC_Booster_ETL.m`, 3 resonance CSVs, 1 seismic CSV
-  - Output files: numbered plots (PNG + SVG), trimmed CSVs, Excel TRS table
-  - **Study these `.m` scripts to understand the config structure** — they define all parameters
-
-## Repo Location
-`/root/data-processing-python/`
+The Python output goes to:
+`/mnt/dropbox/_OpenClaw/data-processing-example/`
 
 ## Completion Criteria
-The task is DONE when all of the following are true:
-1. `python run_resonance.py --config examples/WCC_Booster/resonance_config.yaml` runs without errors
-2. `python run_seismic.py --config examples/WCC_Booster/seismic_config.yaml` runs without errors
-3. Both produce output plots (SVG + PNG) and trimmed CSVs matching the example project structure
-4. Seismic run produces the Excel TRS table
-5. All unit tests pass: `python -m pytest tests/ -v`
-6. `git add -A && git commit -m "..." && git push` succeeds
+DONE when ALL of the following pass:
+1. `python3 run_seismic.py --config examples/WCC_Booster/seismic_config.yaml` — zero errors
+2. `python3 run_resonance.py --config examples/WCC_Booster/resonance_config.yaml` — zero errors
+3. `python3 -m pytest tests/ -v` — all tests pass
+4. `python3 compare/run_comparison.py` — ALL checks PASS (this script must be created as part of this task)
+5. `git add -A && git commit && git push` — succeeds
 
-If you encounter an error, fix it and continue. Do not stop.
-When done, run: `openclaw system event --text "Done: data-processing-python initial build complete" --mode now`
+When done, run: `openclaw system event --text "Done: data-processing fidelity pass complete" --mode now`
 
 ---
 
-## Architecture
+## Comparison Script to Create
 
-```
-data-processing-python/
-├── run_resonance.py          # CLI: python run_resonance.py --config path/to/config.yaml
-├── run_seismic.py            # CLI: python run_seismic.py --config path/to/config.yaml
-├── functions/
-│   ├── __init__.py
-│   ├── parse_csv.py          # Parse multi-section raw CSVs from shake table
-│   ├── calc_seismic_parameters.py
-│   ├── calc_trs.py           # Smallwood algorithm
-│   ├── optimize_trs.py       # TRS vs RRS optimization (best 1/6-octave set)
-│   ├── filter_data.py        # Butterworth lowpass + filtfilt
-│   ├── calc_cc.py            # Cross-correlation (statistical independence)
-│   ├── calc_ch.py            # Magnitude squared coherence
-│   ├── process_seismic_run.py
-│   ├── process_transfer_function.py
-│   ├── plot_th.py            # Time history plot
-│   ├── plot_trs.py           # TRS vs RRS plot (single accel)
-│   ├── plot_trs_all.py       # TRS vs RRS all-axes overlay
-│   ├── plot_transfer.py      # Transmissibility plot
-│   ├── plot_cc.py            # Cross-correlation plot
-│   ├── plot_ch.py            # Coherence plot
-│   ├── save_trs.py           # Write TRS data to Excel via openpyxl
-│   └── save_plot.py          # Save figure as both SVG and PNG with sequential numbering
-├── examples/
-│   └── WCC_Booster/
-│       ├── seismic_config.yaml
-│       └── resonance_config.yaml
-└── tests/
-    ├── test_calc_trs.py
-    ├── test_optimize_trs.py
-    ├── test_calc_seismic_parameters.py
-    └── test_parse_csv.py
-```
+Create `compare/run_comparison.py`. This script compares Python outputs vs MATLAB baseline and prints PASS/FAIL for each check. It must:
+- Compare trimmed CSV values and row counts
+- Compare resonance CSV column order and values
+- Compare Excel column layout, row count, and values
+- Compare image pixel dimensions
+- Compute per-plot mean pixel difference (report actual value, FAIL if > 8.0)
+- Print a final summary: N passed, M failed
 
 ---
 
-## Config File Schema
+## Confirmed Issues — Fix All of These
 
-### seismic_config.yaml
-```yaml
-# Project info
-run_name: "Run_1"
-script_dir: "/mnt/dropbox/_OpenClaw/data-processing-example"
-output_subdir: "Run_1 Plots_Seismic"
+### 1. Filter Config — WRONG VALUES (critical)
+Read the actual MATLAB filter presets from:
+`/mnt/dropbox/_OpenClaw/data-processing-example/_matlab_baseline/Run_1_filters.mat`
+using `scipy.io.loadmat`. The actual presets are:
+- Table_X, Table_Y, UUT_1_Controller_X, UUT_1_Controller_Y, UUT_1_Pump_X, UUT_1_Pump_Y,
+  UUT_2_Controller_X, UUT_2_Controller_Y, UUT_2_Pump_X, UUT_2_Pump_Y:
+  → order=3, cutoff_hz=699.5
+- Table_Z, UUT_1_Controller_Z, UUT_1_Pump_Z, UUT_2_Controller_Z, UUT_2_Pump_Z:
+  → order=3, cutoff_hz=200.0
 
-# Input files
-seismic_file: "/mnt/dropbox/_OpenClaw/data-processing-example/Seismic_2026Jan05-1409-0001.csv"
+Update `examples/WCC_Booster/seismic_config.yaml` with these exact values.
+The current config incorrectly has cutoff_hz=100 for everything.
 
-# Seismic parameters (from ASCE 7)
-seismic_version: "ASCE7-16"   # or "ASCE7-22"
-Sds: 1.26
-Ip: 1.0
-ap: 2.5
-Rp: 2.5
-z_h: 1.0
-Omega0: 2.5   # only needed for FpAFomega
+### 2. Seismic Trimmed CSV — Off-by-one (minor)
+MATLAB: 42001 rows (includes endpoint at t=30.000 s)
+Python:  42000 rows (stops at t=29.9999 s)
+Fix: use `<=` (inclusive) when selecting rows up to `trim_start + duration`.
+In `functions/parse_csv.py`, the time slicing condition should include the endpoint.
 
-# Run config
-axes: ["X", "Y", "Z"]
-time_unit: "ms"   # "ms" or "s"
-duration: 30.0    # seconds of data to use
-damping: 0.05
-window_size: 1.25  # seconds, for coherence (CH) calc
+### 3. Resonance Trimmed CSV — Column Order
+MATLAB order: Frequency, Table_X, Table_Y, Table_Z, UUT_1_Controller_X, UUT_1_Controller_Y,
+  UUT_1_Controller_Z, UUT_1_Pump_X, UUT_1_Pump_Y, UUT_1_Pump_Z, UUT_2_Controller_X, ...
+Python groups by axis (all X first, then all Y, then all Z).
+Fix: write columns in the MATLAB order (grouped by sensor, interleaved axes) in
+`run_resonance.py` when building the DataFrame to save.
 
-# Trim: start time in seconds (from the raw time column after unit conversion)
-trim_start: 5.0   # adjust per run
+### 4. Excel Column Mapping — Z in Wrong Position
+MATLAB layout (0-indexed columns):
+  0-2: X Direction (Freq_X, RRS_X, TRS_X)
+  3-5: Y Direction (Freq_Y, RRS_Y, TRS_Y)
+  6-8: Z Direction (Freq_Z, RRS_Z, TRS_Z)   ← Z IS HERE, not at 9-11
+  9-11: D Direction (empty if no diagonal axis)
+  10 (K): Low resonance value = 5
+  11 (L): Text "<- Lowest Resonance"
+  11 (K row 4): Cutoff value = 3.5
+  11 (L row 4): Text "<- Cuttoff Frequency"   ← note MATLAB typo "Cuttoff"
 
-# Column mapping: maps output column names to raw CSV column names
-# Raw CSV column names are what appear in the header row of the seismic CSV
-# Time column is always first
-column_mapping:
-  Table_X: "Control1 (G)"
-  Table_Y: "Control2 (G)"
-  Table_Z: "Control3 (G)"
-  UUT_1_Controller_X: "Ch1 (G)"
-  UUT_1_Controller_Y: "Ch2 (G)"
-  UUT_1_Controller_Z: "Ch3 (G)"
-  UUT_1_Pump_X: "Ch4 (G)"
-  UUT_1_Pump_Y: "Ch5 (G)"
-  UUT_1_Pump_Z: "Ch6 (G)"
-  UUT_2_Controller_X: "Ch7 (G)"
-  UUT_2_Controller_Y: "Ch8 (G)"
-  UUT_2_Controller_Z: "Ch9 (G)"
-  UUT_2_Pump_X: "Ch10 (G)"
-  UUT_2_Pump_Y: "Ch11 (G)"
-  UUT_2_Pump_Z: "Ch12 (G)"
+MATLAB header rows:
+  Row 1: ['X Direction', None, None, 'Y Direction', None, None, 'Z Direction', None, None, None, None, None]
+  Row 2: ['Freq.\n(Hz)', 'RRS\n(g)', 'TRS\n(g)', 'Freq.\n(Hz)', 'RRS\n(g)', 'TRS\n(g)',
+          'Freq.\n(Hz)', 'RRS\n(g)', 'TRS\n(g)', None, None, None]
 
-# Accelerometers and which UUT they belong to
-# Each entry: accel_name (matches column_mapping prefix) -> UUT name
-accels:
-  - name: "UUT_1_Controller"
-    uut: "UUT_1"
-  - name: "UUT_1_Pump"
-    uut: "UUT_1"
-  - name: "UUT_2_Controller"
-    uut: "UUT_2"
-  - name: "UUT_2_Pump"
-    uut: "UUT_2"
+Fix in `functions/save_trs.py`:
+  axis_to_col = {'X': 0, 'Y': 3, 'Z': 6, 'D': 9}   # Z at 6, not 9
+  Low resonance value at cell(3, 11), text at cell(3, 12)
+  Cutoff value at cell(4, 11), text "<- Cuttoff Frequency" at cell(4, 12)
+  Only 12 columns total (not 14)
+  Write proper header rows matching MATLAB exactly.
 
-# Filter options per channel (or use null for unfiltered)
-# Format: column_name: {order: N, cutoff_hz: F}
-filters:
-  Table_X: null
-  Table_Y: null
-  Table_Z: null
-  UUT_1_Controller_X: {order: 3, cutoff_hz: 100}
-  UUT_1_Controller_Y: {order: 3, cutoff_hz: 100}
-  UUT_1_Controller_Z: {order: 3, cutoff_hz: 100}
-  UUT_1_Pump_X: {order: 3, cutoff_hz: 100}
-  UUT_1_Pump_Y: {order: 3, cutoff_hz: 100}
-  UUT_1_Pump_Z: {order: 3, cutoff_hz: 100}
-  UUT_2_Controller_X: {order: 3, cutoff_hz: 100}
-  UUT_2_Controller_Y: {order: 3, cutoff_hz: 100}
-  UUT_2_Controller_Z: {order: 3, cutoff_hz: 100}
-  UUT_2_Pump_X: {order: 3, cutoff_hz: 100}
-  UUT_2_Pump_Y: {order: 3, cutoff_hz: 100}
-  UUT_2_Pump_Z: {order: 3, cutoff_hz: 100}
+### 5. Figure Dimensions — Must Match MATLAB Exactly
+MATLAB saves at 150 DPI with these exact PaperPosition sizes:
+  TRS plots:        6.5 × 2.70 inches  → 975 × 405 px at 150 DPI
+  Table TH plots:   6.5 × 2.00 inches  → 975 × 300 px at 150 DPI
+  UUT TH plots:     6.5 × 1.80 inches  → 975 × 270 px at 150 DPI
+  Resonance plots:  6.5 × 2.70 inches  → 975 × 405 px at 150 DPI
+  CC/CH plots:      6.5 × 2.70 inches  → 975 × 405 px at 150 DPI
 
-# Plot options
-plot:
-  wide: 6.5    # inches
-  tall: 4.5    # inches
-  tall_th: 4.5
-  tall_th_unit: 3.5
-  font_name: "Arial"
-  font_size_title: 10
-  font_size_axes: 9
-  font_size_ticks: 8
-  font_size_text: 8
-  font_size_legend: 8
-```
+Fix in ALL plot functions:
+  - Use `fig = plt.figure(figsize=(6.5, 2.70))` (or appropriate height)
+  - Save with `fig.savefig(path, dpi=150)` — NO `bbox_inches='tight'`
+  - Use `fig.subplots_adjust(left=0.08, right=0.97, top=0.88, bottom=0.15)` as starting point
+    (tune margins until output pixel dimensions match MATLAB within ±2px)
+  - Set figure background color: `fig.patch.set_facecolor('#F0F0F0')` (MATLAB default light gray)
+  - Set axes background: `ax.set_facecolor('white')`
 
-### resonance_config.yaml
-```yaml
-run_name: "Run_1"
-script_dir: "/mnt/dropbox/_OpenClaw/data-processing-example"
-
-# Input files - one per axis (keys must match axes list)
-files:
-  X: "/mnt/dropbox/_OpenClaw/data-processing-example/Resonance_X_2026Jan05-1323-0001.csv"
-  Y: "/mnt/dropbox/_OpenClaw/data-processing-example/Resonance_Y_2026Jan05-1327-0001.csv"
-  Z: "/mnt/dropbox/_OpenClaw/data-processing-example/Resonance_Z_2026Jan05-1331-0001.csv"
-
-axes: ["X", "Y", "Z"]
-high_cutoff: 33.3   # Hz, trim resonance data above this
-plot_only: true     # true = CSVs already have frequency data (from controller)
-
-# Column mapping for each axis file
-# The resonance CSV header row defines the column names
-# Map: output name -> raw CSV column name (per axis)
-column_mapping:
-  X:
-    Table_X: "Control1 (G)"   # adjust to match actual header
-    UUT_1_Controller_X: "Ch1 (G)"
-    UUT_1_Pump_X: "Ch4 (G)"
-    UUT_2_Controller_X: "Ch7 (G)"
-    UUT_2_Pump_X: "Ch10 (G)"
-  Y:
-    Table_Y: "Control2 (G)"
-    UUT_1_Controller_Y: "Ch2 (G)"
-    UUT_1_Pump_Y: "Ch5 (G)"
-    UUT_2_Controller_Y: "Ch8 (G)"
-    UUT_2_Pump_Y: "Ch11 (G)"
-  Z:
-    Table_Z: "Control3 (G)"
-    UUT_1_Controller_Z: "Ch3 (G)"
-    UUT_1_Pump_Z: "Ch6 (G)"
-    UUT_2_Controller_Z: "Ch9 (G)"
-    UUT_2_Pump_Z: "Ch12 (G)"
-
-# Accelerometers
-accels:
-  - name: "Controller"
-    uut: "UUT_1"
-    uut_map_x: "SS"   # "SS" or "FB" - orientation mapping in plotTransfer
-  - name: "Pump"
-    uut: "UUT_1"
-    uut_map_x: "SS"
-  - name: "Controller"
-    uut: "UUT_2"
-    uut_map_x: "SS"
-  - name: "Pump"
-    uut: "UUT_2"
-    uut_map_x: "SS"
-
-# Natural frequency selections (Hz) per UUT/accel/axis
-# These replace the interactive ginput() click in MATLAB
-# Format: uut -> accel -> axis -> frequency_hz
-natural_frequencies:
-  UUT_1:
-    Controller_X: 33.3
-    Controller_Y: 33.3
-    Controller_Z: 33.3
-    Pump_X: 33.3
-    Pump_Y: 33.3
-    Pump_Z: 33.3
-  UUT_2:
-    Controller_X: 33.3
-    Controller_Y: 33.3
-    Controller_Z: 33.3
-    Pump_X: 33.3
-    Pump_Y: 33.3
-    Pump_Z: 33.3
-
-# Output subdirectory for each UUT
-output_subdirs:
-  UUT_1: "UUT_1_Plots_Resonance"
-  UUT_2: "UUT_2_Plots_Resonance"
-
-plot:
+Update `seismic_config.yaml` plot options:
   wide: 6.5
-  tall: 4.5
-  font_name: "Arial"
-  font_size_title: 10
-  font_size_axes: 9
-  font_size_ticks: 8
-  font_size_text: 8
+  tall_trs: 2.70       # TRS plots
+  tall_th_table: 2.00  # Table TH plots
+  tall_th_uut: 1.80    # UUT TH plots
+  tall_res: 2.70       # Resonance plots
+  tall_cc: 2.70        # CC plot
+  tall_ch: 2.70        # CH plot
+
+### 6. ALL Plots — Tick Direction and Full Box
+Apply to every single plot function:
+```python
+ax.tick_params(axis='both', which='both', direction='in',
+               top=True, right=True,
+               length=4, width=0.5)  # inward ticks on all 4 sides
+ax.spines['top'].set_visible(True)
+ax.spines['right'].set_visible(True)
 ```
+
+### 7. ALL Plots — Title Bold, Axes Labels Bold
+```python
+ax.set_title('...', fontsize=fontSizeTitle, fontweight='bold')
+ax.set_xlabel('...', fontsize=fontSizeAxes, fontweight='bold')
+ax.set_ylabel('...', fontsize=fontSizeAxes, fontweight='bold')
+```
+
+### 8. TH Plots — Multiple Fixes
+a) ±Arig_90 dashed lines MUST BE BLUE, not gray:
+   ```python
+   ax.axhline(Arig_90, color='blue', linestyle='--', linewidth=1.0, dashes=(6,3))
+   ax.axhline(-Arig_90, color='blue', linestyle='--', linewidth=1.0, dashes=(6,3))
+   ```
+   Also add blue text annotations for the Arig_90 value (e.g. "1.94") near the line
+   at the left side of the plot.
+
+b) X-axis range: always 0 to 30 (matching MATLAB `duration` = 30s), NOT auto-scaled:
+   ```python
+   ax.set_xlim([0, 30])
+   ax.set_xticks([0, 5, 10, 15, 20, 25, 30])
+   ```
+
+c) Y-axis range: symmetric, based on max absolute value of signal, rounded to next integer.
+   Match MATLAB's logic from `plotTH.m` exactly:
+   ```python
+   maxAccel = np.max(np.abs(accel))
+   yLim = max(ceil(maxAccel), ceil(Arig_90) + 1)
+   ax.set_ylim([-yLim, yLim])
+   ax.set_yticks(range(-yLim, yLim+1, 1))  # every 1g
+   ```
+   (Read the actual MATLAB `plotTH.m` code for the exact yLim calculation)
+
+d) "Max. Accel. = Xg" annotation: black text in lower-right area.
+
+e) Figure height for Table channels (those starting with "Table_"): use `tall_th_table`
+   Figure height for all other channels: use `tall_th_uut`
+
+### 9. TRS Plots — Multiple Fixes
+a) X-axis custom tick labels (CRITICAL — currently shows 10^0, 10^1 instead of readable values):
+   ```python
+   xTicks = [0.5, 1, 1.3, 8.3, 10, 20, 35]
+   ax.set_xscale('log')
+   ax.set_xlim([0.5, 35])
+   ax.set_xticks(xTicks)
+   ax.set_xticklabels([str(x) for x in xTicks], fontsize=fontSizeTicks)
+   ax.xaxis.set_minor_locator(matplotlib.ticker.NullLocator())
+   ```
+
+b) Y-axis custom tick labels:
+   ```python
+   yTicks = [0.1, 0.5, 1, 5, 10, 50]
+   ax.set_yscale('log')
+   ax.set_ylim([yMin, yMax])  # match MATLAB plotTRS.m yMin/yMax logic
+   ax.set_yticks(yTicks)
+   ax.set_yticklabels([str(y) for y in yTicks], fontsize=fontSizeTicks)
+   ax.yaxis.set_minor_locator(matplotlib.ticker.NullLocator())
+   ```
+
+c) 0.9×RRS line: RED dashed (currently gray):
+   ```python
+   ax.plot(freq72, 0.9*RRS, color='red', linestyle='--', linewidth=0.75, label='0.9*RRS')
+   ```
+
+d) Read `plotTRS.m` carefully and replicate ALL line styles exactly:
+   - TRS curve: black solid
+   - RRS curve: blue dashed, linewidth ~2.0
+   - 0.9×RRS: red dashed
+   - Aflx horizontal line: red dashed, left segment only (0.5 to 1.3 Hz)
+   - Arig horizontal line: red dashed, right segment only (8.3 Hz to 35 Hz)
+   - 1.3 Hz vertical: gray dashed
+   - 8.3 Hz vertical: gray dashed
+   - lowCutoff vertical line: cyan dashed with cyan text label
+   - 1.1×RRS yellow dashed line (if present in MATLAB)
+
+e) Legend: use underscore in channel name label (e.g. "Table_X" not "Table X")
+
+### 10. Resonance (Transfer Function) Plots — Multiple Fixes
+a) CRITICAL BUG — Natural frequency marker is placed at config value (33.3 Hz default)
+   instead of the actual peak. Fix:
+   ```python
+   # Find the actual peak in the transmissibility data near the config nat_freq
+   # Use the peak closest to nat_freq, or the global maximum
+   peak_idx = np.argmax(transfer_response)
+   nat_freq_actual = frequency[peak_idx]
+   nat_freq_value = transfer_response[peak_idx]
+   # Plot marker at actual peak
+   ax.plot(nat_freq_actual, nat_freq_value, 'o', color='blue',
+           markersize=8, markerfacecolor='none', markeredgewidth=1.5)
+   ax.text(nat_freq_actual * 0.85, nat_freq_value,
+           f'{nat_freq_actual:.1f}-Hz', color='blue', fontsize=fontSizeText,
+           ha='right', va='center')
+   ```
+   The config `natural_frequencies` value is a HINT, not the exact value.
+   Find the peak automatically.
+
+b) X-axis range: 1.0 to highCutoff (33.3 Hz), NOT 1-100 Hz
+   ```python
+   ax.set_xlim([1.0, 33.3])
+   xTicks = [1.3, 5, 10, 20, 30]
+   ax.set_xticks(xTicks)
+   ax.set_xticklabels([str(x) for x in xTicks])
+   ax.xaxis.set_minor_locator(matplotlib.ticker.NullLocator())
+   ```
+
+c) Y-axis range: 0.1 to ~50 (log), matching MATLAB
+   ```python
+   yTicks = [1, 10, 50]
+   ax.set_yscale('log')
+   ax.set_ylim([0.1, 55])
+   ax.set_yticks(yTicks)
+   ax.set_yticklabels([str(y) for y in yTicks])
+   ax.yaxis.set_minor_locator(matplotlib.ticker.NullLocator())
+   ```
+
+d) Grid: dotted style (MATLAB uses dotted, Python is using solid):
+   ```python
+   ax.grid(True, which='major', linestyle=':', linewidth=0.5, color='gray', alpha=0.7)
+   ax.grid(False, which='minor')
+   ```
+
+e) Read `plotTransfer.m` from MATLAB source carefully for all details.
+
+### 11. CC Plot — Multiple Fixes
+a) X vs Z line: MUST BE CYAN, currently gray:
+   ```python
+   colors = {'XY': 'black', 'XZ': 'cyan', 'YZ': 'magenta'}
+   ```
+   (Read MATLAB `plotCC.m` for exact color definitions and legend labels)
+
+b) X-axis ticks: every 5 units (MATLAB): `ax.set_xticks(range(-30, 31, 5))`
+
+c) Threshold lines: bright red dashed, prominent:
+   ```python
+   ax.axhline(threshold, color='red', linestyle='--', linewidth=1.0)
+   ax.axhline(-threshold, color='red', linestyle='--', linewidth=1.0)
+   ```
+   CC threshold = 0.3 / cc_factor
+
+d) Read `plotCC.m` and `calcCC.m` from MATLAB source and replicate exactly.
+
+### 12. CH Plot — Apply Standard Fixes
+Read `plotCH.m` from `/root/data-processing/` and replicate tick labels, colors, line styles.
+Apply tick direction, full box, bold title/labels.
 
 ---
 
-## Critical Implementation Notes
+## Working Method
 
-### CSV Parsing (parse_csv.py)
-The raw shake table CSV files are multi-section. Look at the raw CSV:
-- `/mnt/dropbox/_OpenClaw/data-processing-example/Seismic_2026Jan05-1409-0001.csv`
-The structure: a header row followed by data, then another header row, etc.
-The header row containing `"Time (ms)"` is the start of the time-domain section.
-Parse by scanning for the row where the first column matches `"Time (ms)"` or similar time-domain header.
-Extract only the columns specified in `column_mapping`.
-Output a clean DataFrame with renamed columns matching `column_mapping` keys.
+1. Read EACH MATLAB function from `/root/data-processing/Functions/` and
+   `/root/data-processing/Resonance Functions/` before modifying its Python equivalent.
+2. Fix one function at a time. After each fix, run the full pipeline and update PROGRESS.md.
+3. After all fixes, run `compare/run_comparison.py`. Fix anything still failing.
+4. Run `python3 -m pytest tests/ -v` and fix any broken tests.
+5. Commit when all checks pass.
 
-For resonance CSVs (`plot_only: true`):
-- The first column is the frequency axis (look for "Frequency (Hz)" or similar in the header)
-- Just rename the first column to "Frequency", extract mapped columns, trim to `high_cutoff`
+## Do NOT
+- Modify or delete anything in `_matlab_baseline/`
+- Change the MATLAB source files in `/root/data-processing/`
+- Break existing passing functionality
 
-### Smallwood TRS (calc_trs.py)
-Exact port of `/root/data-processing/Functions/calcTRS.m`.
-Use `scipy.signal.lfilter(b, a, accel)` where b=[b1,b2,b3], a=[1,-a1,-a2].
-Vectorize over frequencies using a loop (or numpy for speed).
-Returns array of peak absolute response at each frequency.
+## PROGRESS.md
+Update after each fix. If you restart, read PROGRESS.md first to know where you left off.
 
-```python
-import numpy as np
-from scipy.signal import lfilter
+## Files to Read Before Starting
+1. `/root/data-processing/Functions/plotTH.m` — TH plot details (yLim logic, colors, line styles)
+2. `/root/data-processing/Functions/plotTRS.m` — TRS plot details (all lines, ticks, colors)
+3. `/root/data-processing/Functions/plotCC.m` — CC colors, threshold, tick labels
+4. `/root/data-processing/Functions/plotCH.m` — CH details
+5. `/root/data-processing/Resonance Functions/plotTransfer.m` — transmissibility plot
+6. `/root/data-processing/Functions/saveTRS.m` — Excel layout and header rows
+7. `/root/data-processing/Functions/filterData.m` — understand filter presets
+8. `examples/WCC_Booster/seismic_config.yaml` — current (incorrect) filter values to update
 
-def calc_trs(time, accel, freq72, damping):
-    delta_t = time[1] - time[0]
-    trs = np.zeros(len(freq72))
-    for j, f in enumerate(freq72):
-        omega = 2 * np.pi * f
-        omega_d = omega * np.sqrt(1 - damping**2)
-        E = np.exp(-damping * omega * delta_t)
-        K = omega_d * delta_t
-        C = E * np.cos(K)
-        S = E * np.sin(K)
-        Sp = S / K
-        a1 = 2 * C
-        a2 = -(E**2)
-        b1 = 1 - Sp
-        b2 = 2 * (Sp - C)
-        b3 = (E**2) - Sp
-        resp = lfilter([b1, b2, b3], [1, -a1, -a2], accel)
-        trs[j] = np.max(np.abs(resp))
-    return trs
-```
-
-### Seismic Parameters (calc_seismic_parameters.py)
-Port `/root/data-processing/Functions/calcSeismicParameters.m`.
-Read that file carefully — it computes:
-- freq72: frequency array at 1/72 octave spacing from ~1.3 Hz to 33.3 Hz
-- RRS_h, RRS_v: required response spectra for horizontal and vertical
-- Aflx_h/v, Arig_h/v, Arig_h90/v90: flexible/rigid zone boundaries
-
-### Butterworth Filter (filter_data.py)
-```python
-from scipy.signal import butter, filtfilt
-def filter_th(accel, sample_rate, order, cutoff_hz):
-    Wn = cutoff_hz / (sample_rate / 2)
-    b, a = butter(order, Wn, btype='low')
-    return filtfilt(b, a, accel)
-```
-
-### Optimize TRS (optimize_trs.py)
-Exact port of `/root/data-processing/Functions/optimizeTRS.m`.
-The algorithm tries 12 starting indices (1:12) for 1/6-octave sub-sampling.
-For Table accels, picks the starting index that gives best TRS factor.
-For non-Table accels, always uses index 0.
-The TRS factor logic is in `analyzeSet()` in the MATLAB code — port it exactly.
-
-### Transfer Function (process_transfer_function.py)
-Port `/root/data-processing/Resonance Functions/processTransferFunction.m`.
-Use `scipy.signal.csd` and `scipy.signal.welch` to compute tfestimate equivalent:
-```python
-from scipy.signal import csd, welch
-f, Pxy = csd(table_accel, uut_accel, fs=Fs, ...)
-f, Pxx = welch(table_accel, fs=Fs, ...)
-Txy = np.abs(Pxy / Pxx)
-```
-
-### Cross-Correlation (calc_cc.py)
-```python
-from scipy.signal import correlate, correlation_lags
-# For each pair (X,Y), (X,Z), (Y,Z):
-corr = correlate(sig1, sig2, mode='full') / (np.std(sig1) * np.std(sig2) * len(sig1))
-```
-CC factor = 0.3 / max(|correlation|)
-
-### Coherence (calc_ch.py)
-```python
-from scipy.signal import coherence
-fch = # frequency array from 1.3 to 33.3 Hz at 1/72 octave
-CH, f = coherence(sig1[5*sr:-5*sr], sig2[5*sr:-5*sr], fs=sr, nperseg=window_samples, noverlap=overlap)
-```
-CH factor = 0.5 / max(CH)
-
-### Plotting
-- All matplotlib figures saved as both `.svg` AND `.png`
-- SVG is for Word/PDF (vector), PNG is for quick viewing
-- Use sequential numbering: `{n:02d}_{run_name}_{plot_type}_{accel}.svg`
-- Match the MATLAB plot styles closely (log scales, tick marks, colors)
-- TRS plots: x-axis log 0.5-35 Hz, y-axis log; gridlines; TRS in black, RRS in blue dashed, Aflx/Arig markers
-- TH plots: x-axis 0-30s linear; y-axis symmetric; black time history; blue dashed ±Arig_90 lines for Table
-- Transmissibility plots: x-axis log 1-35 Hz, y-axis log 0.1-55
-
-### Excel Output (save_trs.py)
-Use openpyxl. Copy template from `/root/data-processing/Tables/TRSvsRRS_Template.xlsx`.
-Write Freq06, RRS, TRS06 data to columns A-L (X=A:C, Y=D:F, Z=G:I, D=J:L if applicable).
-Write lowResonance to N3, lowCutoff to N4.
-Filter: only write rows where frequency > 1.0 Hz.
-Round all values to 2 decimal places.
-
-### Plot Save (save_plot.py)
-```python
-import matplotlib.pyplot as plt
-
-def save_plot(fig, name, run_name, plot_number, output_dir):
-    filename = f"{plot_number:02d}_{run_name}_{name}"
-    fig.savefig(f"{output_dir}/{filename}.svg", format='svg', bbox_inches='tight')
-    fig.savefig(f"{output_dir}/{filename}.png", dpi=150, bbox_inches='tight')
-    plt.close(fig)
-    return plot_number + 1
-```
-
-### Runner Script (run_seismic.py)
-```
-1. Load config YAML
-2. Parse raw seismic CSV -> trimmed DataFrame
-3. Save trimmed CSV
-4. calc_seismic_parameters -> Seismic struct
-5. For each column in trimmed data:
-   a. Apply filter if configured
-   b. calc_trs -> TRS72
-   c. optimize_trs -> freq06, TRS06
-   d. plot_th -> save
-   e. plot_trs -> save
-6. For each accel (Table + all accels):
-   a. plot_trs_all -> save
-7. save_trs -> Excel
-8. calc_cc + plot_cc -> save
-9. calc_ch + plot_ch -> save
-```
-
----
-
-## Study These Files First
-Before writing any code, read:
-1. `/root/data-processing/Functions/calcSeismicParameters.m` — seismic params, freq72 construction
-2. `/root/data-processing/Functions/calcTRS.m` — Smallwood algorithm
-3. `/root/data-processing/Functions/optimizeTRS.m` — TRS optimization (analyzeSet)
-4. `/mnt/dropbox/_OpenClaw/data-processing-example/Seismic_WCC_Booster_ETL.m` — the actual config
-5. `/mnt/dropbox/_OpenClaw/data-processing-example/Resonance_WCC_Booster_ETL.m` — resonance config
-6. `/root/data-processing/Functions/saveTRS.m` — Excel template column layout
-7. `/root/data-processing/Resonance Functions/processTransferFunction.m` — tf calc
-8. Sample of the raw CSVs to understand their structure
-
-The example `.m` files tell you the ACTUAL column names used in the WCC Booster project — use those in the example configs.
-
-## Dependencies (requirements.txt)
-```
-numpy
-scipy
-pandas
-matplotlib
-openpyxl
-pyyaml
-pytest
-```
-
-## Progress Tracking
-Maintain a `PROGRESS.md` in the repo root. Update it after each major step. If you crash and restart, check PROGRESS.md to know where you left off.
-
-## Git Discipline
-Commit after each phase:
-- Phase 1: config schema + example configs
-- Phase 2: core math modules + tests
-- Phase 3: CSV parsing
-- Phase 4: plotting
-- Phase 5: Excel output
-- Phase 6: runner scripts working end-to-end
-
-Use: `git add -A && git commit -m "phase N: description" && git push`
+## Summary of Files to Modify
+- `examples/WCC_Booster/seismic_config.yaml` — filter values, tall dimensions
+- `functions/parse_csv.py` — fence-post fix (include endpoint row)
+- `functions/save_trs.py` — Z column position, header rows, annotation cells
+- `functions/save_plot.py` — remove bbox_inches='tight', set exact DPI
+- `functions/plot_th.py` — blue Arig lines, x/y range, figure height, tick direction, box
+- `functions/plot_trs.py` — custom tick labels, 0.9*RRS red, figure height, tick direction
+- `functions/plot_trs_all.py` — same tick/box fixes
+- `functions/plot_transfer.py` — peak detection, x/y range, grid dotted, tick direction
+- `functions/plot_cc.py` — cyan color for XZ, x-ticks every 5, threshold lines
+- `functions/plot_ch.py` — tick direction, box, labels
+- `run_resonance.py` — fix column order in resonance trimmed CSV output
+- `compare/run_comparison.py` — CREATE THIS (comparison/validation script)
