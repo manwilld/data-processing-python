@@ -1,0 +1,81 @@
+# WCC Booster Resonance Test Configuration
+run_name: "Run_1"
+script_dir: "/mnt/dropbox/_OpenClaw/data-processing-example"
+
+# Input files - one per axis
+files:
+  X: "/mnt/dropbox/_OpenClaw/data-processing-example/Resonance_X_2026Jan05-1323-0001.csv"
+  Y: "/mnt/dropbox/_OpenClaw/data-processing-example/Resonance_Y_2026Jan05-1327-0001.csv"
+  Z: "/mnt/dropbox/_OpenClaw/data-processing-example/Resonance_Z_2026Jan05-1331-0001.csv"
+
+axes: ["X", "Y", "Z"]
+high_cutoff: 35.1
+plot_only: true
+
+# Column mapping for each axis file
+column_mapping:
+  X:
+    Table_X: "Ch1 (G)"
+    UUT_1_Controller_X: "Ch4 (G)"
+    UUT_1_Pump_X: "Ch13 (G)"
+    UUT_2_Controller_X: "Ch2 (G)"
+    UUT_2_Pump_X: "Ch3 (G)"
+  Y:
+    Table_Y: "Ch5 (G)"
+    UUT_1_Controller_Y: "Ch8 (G)"
+    UUT_1_Pump_Y: "Ch14 (G)"
+    UUT_2_Controller_Y: "Ch6 (G)"
+    UUT_2_Pump_Y: "Ch7 (G)"
+  Z:
+    Table_Z: "Ch9 (G)"
+    UUT_1_Controller_Z: "Ch12 (G)"
+    UUT_1_Pump_Z: "Ch15 (G)"
+    UUT_2_Controller_Z: "Ch10 (G)"
+    UUT_2_Pump_Z: "Ch11 (G)"
+
+# Accelerometers
+accels:
+  - name: "Controller"
+    uut: "UUT_1"
+    uut_map_x: "SS"
+  - name: "Pump"
+    uut: "UUT_1"
+    uut_map_x: "SS"
+  - name: "Controller"
+    uut: "UUT_2"
+    uut_map_x: "SS"
+  - name: "Pump"
+    uut: "UUT_2"
+    uut_map_x: "SS"
+
+# Natural frequency selections (Hz) per UUT/accel/axis
+natural_frequencies:
+  UUT_1:
+    Controller_X: 33.3
+    Controller_Y: 33.3
+    Controller_Z: 33.3
+    Pump_X: 33.3
+    Pump_Y: 33.3
+    Pump_Z: 33.3
+  UUT_2:
+    Controller_X: 33.3
+    Controller_Y: 33.3
+    Controller_Z: 33.3
+    Pump_X: 33.3
+    Pump_Y: 33.3
+    Pump_Z: 33.3
+
+# Output subdirectory for each UUT
+output_subdirs:
+  UUT_1: "UUT_1_Plots_Resonance"
+  UUT_2: "UUT_2_Plots_Resonance"
+
+plot:
+  wide: 6.5
+  tall: 2.7
+  font_name: "Arial"
+  font_size_title: 11
+  font_size_axes: 11
+  font_size_ticks: 10
+  font_size_text: 7
+  font_size_legend: 6

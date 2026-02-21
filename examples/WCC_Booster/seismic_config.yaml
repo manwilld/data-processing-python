@@ -1,0 +1,85 @@
+# WCC Booster Seismic Test Configuration
+run_name: "Run_1"
+script_dir: "/mnt/dropbox/_OpenClaw/data-processing-example"
+output_subdir: "Run_1 Plots_Seismic"
+
+# Input file
+seismic_file: "/mnt/dropbox/_OpenClaw/data-processing-example/Seismic_2026Jan05-1409-0001.csv"
+
+# Seismic parameters
+seismic_version: "ASCE7-22"
+Sds1: 2.00
+z_h1: 1.0
+Sds2: 2.50
+z_h2: 0.0
+low_resonance: 5.0
+
+# Run config
+axes: ["X", "Y", "Z"]
+time_unit: "ms"
+duration: 30.0
+damping: 0.05
+window_size: 1.25
+
+# Trim: start time in seconds (from the raw time column after unit conversion)
+trim_start: -0.2
+
+# Column mapping: maps output column names to raw CSV column names
+column_mapping:
+  Table_X: "Ch1 (G)"
+  Table_Y: "Ch5 (G)"
+  Table_Z: "Ch9 (G)"
+  UUT_1_Controller_X: "Ch4 (G)"
+  UUT_1_Controller_Y: "Ch8 (G)"
+  UUT_1_Controller_Z: "Ch12 (G)"
+  UUT_1_Pump_X: "Ch13 (G)"
+  UUT_1_Pump_Y: "Ch14 (G)"
+  UUT_1_Pump_Z: "Ch15 (G)"
+  UUT_2_Controller_X: "Ch2 (G)"
+  UUT_2_Controller_Y: "Ch6 (G)"
+  UUT_2_Controller_Z: "Ch10 (G)"
+  UUT_2_Pump_X: "Ch3 (G)"
+  UUT_2_Pump_Y: "Ch7 (G)"
+  UUT_2_Pump_Z: "Ch11 (G)"
+
+# Accelerometers and which UUT they belong to
+accels:
+  - name: "UUT_1_Controller"
+    uut: "UUT_1"
+  - name: "UUT_1_Pump"
+    uut: "UUT_1"
+  - name: "UUT_2_Controller"
+    uut: "UUT_2"
+  - name: "UUT_2_Pump"
+    uut: "UUT_2"
+
+# Filter options per channel (null for unfiltered)
+filters:
+  Table_X: null
+  Table_Y: null
+  Table_Z: null
+  UUT_1_Controller_X: {order: 3, cutoff_hz: 100}
+  UUT_1_Controller_Y: {order: 3, cutoff_hz: 100}
+  UUT_1_Controller_Z: {order: 3, cutoff_hz: 100}
+  UUT_1_Pump_X: {order: 3, cutoff_hz: 100}
+  UUT_1_Pump_Y: {order: 3, cutoff_hz: 100}
+  UUT_1_Pump_Z: {order: 3, cutoff_hz: 100}
+  UUT_2_Controller_X: {order: 3, cutoff_hz: 100}
+  UUT_2_Controller_Y: {order: 3, cutoff_hz: 100}
+  UUT_2_Controller_Z: {order: 3, cutoff_hz: 100}
+  UUT_2_Pump_X: {order: 3, cutoff_hz: 100}
+  UUT_2_Pump_Y: {order: 3, cutoff_hz: 100}
+  UUT_2_Pump_Z: {order: 3, cutoff_hz: 100}
+
+# Plot options
+plot:
+  wide: 6.5
+  tall: 2.7
+  tall_th: 2.0
+  tall_th_unit: 1.8
+  font_name: "Arial"
+  font_size_title: 11
+  font_size_axes: 11
+  font_size_ticks: 10
+  font_size_text: 7
+  font_size_legend: 6
