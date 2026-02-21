@@ -30,18 +30,12 @@ def plot_transfer(run_name, uut, accel_name, axis, axis_uut,
     ax.set_xscale('log')
     ax.set_yscale('log')
 
-    ax.set_xticks(ticks)
-    ax.set_xticklabels([str(t) for t in ticks], fontsize=font_size_ticks)
-    ax.xaxis.set_minor_locator(ticker.NullLocator())
-    ax.set_yticks(y_ticks)
-    ax.set_yticklabels([str(t) for t in y_ticks], fontsize=font_size_ticks)
-    ax.yaxis.set_minor_locator(ticker.NullLocator())
-
-    # Dotted grid matching MATLAB
+    # Grid (dotted, matching MATLAB)
     ax.grid(True, which='major', linestyle=':', linewidth=0.5, color='gray', alpha=0.7)
     ax.grid(False, which='minor')
 
-    ax.loglog(frequency, transfer_response, 'k', linewidth=1)
+    # Plot (ax.plot not loglog — avoids resetting tick formatters)
+    ax.plot(frequency, transfer_response, color='black', linewidth=1.0)
 
     # Find actual peak near natural_freq (config value is a hint)
     if natural_freq is not None and natural_freq > 0:
@@ -57,23 +51,28 @@ def plot_transfer(run_name, uut, accel_name, axis, axis_uut,
                 ha='right', va='bottom', fontname=font_name,
                 fontsize=font_size_text, color='b')
 
-    ax.set_xlim([1, 35])
-    ax.set_ylim([0.1, 55])
+    ax.set_xlim([1.0, 35])
+    ax.set_ylim([0.3, 55])
 
-    title = (f"Transmissibility: {uut.replace('_', ' ')} "
-             f"({accel_name.replace('_', ' ')}) {axis_uut} / Table {axis}")
-    ax.set_title(title, fontname=font_name, fontsize=font_size_title,
-                 fontweight='bold')
-    ax.set_xlabel('Frequency (Hz)', fontname=font_name, fontsize=font_size_axes,
-                   fontweight='bold')
-    ax.set_ylabel('Ratio (g/g)', fontname=font_name, fontsize=font_size_axes,
-                   fontweight='bold')
+    # Custom tick labels set AFTER all plotting (prevents loglog reset)
+    ax.set_xticks(ticks)
+    ax.xaxis.set_major_formatter(ticker.FixedFormatter([str(t) for t in ticks]))
+    ax.xaxis.set_minor_locator(ticker.NullLocator())
+    ax.set_yticks(y_ticks)
+    ax.yaxis.set_major_formatter(ticker.FixedFormatter([str(t) for t in y_ticks]))
+    ax.yaxis.set_minor_locator(ticker.NullLocator())
 
-    # Tick direction: inward on all 4 sides, full box
     ax.tick_params(axis='both', which='both', direction='in',
-                   top=True, right=True, length=4, width=0.5)
+                   top=True, right=True, length=4, width=0.5,
+                   labelsize=font_size_ticks)
     ax.spines['top'].set_visible(True)
     ax.spines['right'].set_visible(True)
 
-    fig.subplots_adjust(left=0.130, right=0.904, top=0.919, bottom=0.160)
+    title = (f"Transmissibility: {uut.replace('_', ' ')} "
+             f"({accel_name.replace('_', ' ')}) {axis_uut} / Table {axis}")
+    ax.set_title(title, fontsize=font_size_title, fontweight='bold')
+    ax.set_xlabel('Frequency (Hz)', fontsize=font_size_axes, fontweight='bold')
+    ax.set_ylabel('Ratio (g/g)', fontsize=font_size_axes, fontweight='bold')
+
+    fig.subplots_adjust(left=0.130, right=0.904, top=0.880, bottom=0.160)
     return fig

@@ -15,7 +15,7 @@ def plot_cc(cc_result, run_name, plot_options):
     font_size_axes = plot_options.get('font_size_axes', 11)
     font_size_ticks = plot_options.get('font_size_ticks', 10)
 
-    # MATLAB ticks: every 5 from -65 to 65
+    # MATLAB ticks: every 5 from -65 to 65 (MATLAB plotCC.m exact)
     x_ticks = list(range(-65, 66, 5))
     y_ticks = [-0.5, -0.3, -0.1, 0, 0.1, 0.3, 0.5]
 
@@ -39,7 +39,7 @@ def plot_cc(cc_result, run_name, plot_options):
         ax.plot([lag[0], lag[-1]], [0.3, 0.3], 'r--', linewidth=1.0)
         ax.plot([lag[0], lag[-1]], [-0.3, -0.3], 'r--', linewidth=1.0)
 
-    ax.grid(True)
+    ax.grid(True, which='major', color='lightgray', linewidth=0.4)
     ax.set_ylim([-0.5, 0.5])
     ax.set_xticks(x_ticks)
     ax.set_yticks(y_ticks)

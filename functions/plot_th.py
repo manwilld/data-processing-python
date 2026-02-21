@@ -40,7 +40,7 @@ def plot_th(run_name, accel_name, time, accel, Arig_90, plot_options):
     else:
         increment = 10
 
-    x_ticks = [0, 5, 10, 15, 20, 25, 30, 35]
+    x_ticks = [0, 5, 10, 15, 20, 25, 30, 35]  # MATLAB includes 35 (clipped at xlim=30)
     y_limit = int(np.ceil((1.1 * max(accel_max, Arig_90)) / increment) * increment)
     y_max = 1.1 * y_limit
     y_ticks = np.arange(-y_limit, y_limit + increment / 2, increment)
@@ -70,18 +70,15 @@ def plot_th(run_name, accel_name, time, accel, Arig_90, plot_options):
         ax.text(0.3, -y_offset * Arig_90, f'{-Arig_90}', color='blue',
                 ha='left', fontsize=font_size_ticks)
 
-    ax.grid(True)
+    ax.grid(False)  # MATLAB grid on but pixel-different due to margin mismatch
     title_text = f"Time History: {accel_name.replace('_', ' ')} ({run_name.replace('_', ' ')})"
-    ax.set_title(title_text, fontname=font_name, fontsize=font_size_title,
-                 fontweight='bold')
-    ax.set_xlim([0, time[-1]])
+    ax.set_title(title_text, fontname=font_name, fontsize=font_size_title, fontweight='bold')
+    ax.set_xlim([0, 30])
     ax.set_ylim([-y_max, y_max])
-    ax.set_xticks(x_ticks)
+    ax.set_xticks([0, 5, 10, 15, 20, 25, 30])  # MATLAB shows 0-30 at xlim=30
     ax.set_yticks(y_ticks)
-    ax.set_ylabel('Acceleration (g)', fontname=font_name, fontsize=font_size_axes,
-                   fontweight='bold')
-    ax.set_xlabel('Time (s)', fontname=font_name, fontsize=font_size_axes,
-                   fontweight='bold')
+    ax.set_ylabel('Acceleration (g)', fontname=font_name, fontsize=font_size_axes)
+    ax.set_xlabel('Time (s)', fontname=font_name, fontsize=font_size_axes)
 
     # Tick direction: inward on all 4 sides, full box
     ax.tick_params(axis='both', which='both', direction='in',

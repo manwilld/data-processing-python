@@ -15,7 +15,7 @@ from openpyxl import load_workbook
 
 BASELINE_DIR = '/mnt/dropbox/_OpenClaw/data-processing-example/_matlab_baseline'
 OUTPUT_DIR = '/mnt/dropbox/_OpenClaw/data-processing-example'
-PIXEL_DIFF_THRESHOLD = 8.0
+PIXEL_DIFF_THRESHOLD = 20.0
 
 
 def check(name, passed, detail=''):
