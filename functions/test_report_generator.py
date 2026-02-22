@@ -255,6 +255,67 @@ class TestReportGenerator:
             ]
             self._fill_row(t.rows[2 + i], vals)
 
+    def _build_levels_table(self, levels):
+        """Seismic levels table (10 cols, 2 data rows per level: z/h=1 and z/h=0).
+        Reused in Test Results Summary and at the start of each Run section.
+        """
+        n_data_rows = len(levels) * 2
+        t = self._add_table(1 + n_data_rows, 10)
+        self._fill_row(t.rows[0],
+            ['Level', 'SDS (g)', 'z/h', 'Hf / Rμ',
+             'AFLX-H (g)', 'ARIG-H (g)', 'AFLX-V (g)', 'ARIG-V (g)',
+             '0.9·ARIG-H', '0.9·ARIG-V'],
+            bold=True)
+        row_idx = 1
+        for lv in levels:
+            hf_rmu_zh1 = f"{lv['Hf']} / {lv['Rmu']}"
+            hf_rmu_zh0 = f"{lv.get('Hf_zh0', 1.0)} / {lv.get('Rmu_zh0', 1.0)}"
+            self._fill_row(t.rows[row_idx], [
+                lv['name'], f"{lv['Sds_zh1']:.2f}", '1', hf_rmu_zh1,
+                f"{lv['Aflx_h']:.2f}", f"{lv['Arig_h']:.2f}",
+                f"{lv['Aflx_v']:.2f}", f"{lv['Arig_v']:.2f}",
+                f"{lv['Arig_h_90']:.2f}", f"{lv['Arig_v_90']:.2f}",
+            ])
+            self._fill_row(t.rows[row_idx + 1], [
+                lv['name'], f"{lv['Sds_zh0']:.2f}", '0', hf_rmu_zh0,
+                f"{lv['Aflx_h']:.2f}", f"{lv['Arig_h']:.2f}",
+                f"{lv['Aflx_v']:.2f}", f"{lv['Arig_v']:.2f}",
+                f"{lv['Arig_h_90']:.2f}", f"{lv['Arig_v_90']:.2f}",
+            ])
+            row_idx += 2
+        return t
+
+    def _build_run_results_table(self, runs, levels):
+        """Peak acceleration results table for a list of runs.
+        Reused in Test Results Summary and at the end of each Run section.
+        """
+        has_diag = any(r.get('has_diagonal', False) for r in runs)
+        n_accel_cols = 4 if has_diag else 3
+        n_cols = 5 + n_accel_cols
+        accel_header = ['X', 'Y', '45', 'Z'] if has_diag else ['X', 'Y', 'Z']
+
+        t = self._add_table(2 + len(runs), n_cols)
+        row0_vals = (['Test Run', 'Test Date', 'Level', '0.9·ARIG-H', '0.9·ARIG-V']
+                     + ['Peak Table Accel. (g)'] * n_accel_cols)
+        self._fill_row(t.rows[0], row0_vals, bold=True)
+        _merge_header_row(t, 0, 5, 4 + n_accel_cols, 'Peak Table Accel. (g)', bold=True)
+        self._fill_row(t.rows[1],
+            ['Test Run', 'Test Date', 'Level', '0.9·ARIG-H', '0.9·ARIG-V'] + accel_header,
+            bold=True)
+        for i, run in enumerate(runs):
+            lv_name = run.get('level', '')
+            lv = next((l for l in levels if l['name'] == lv_name), {})
+            pa = run.get('peak_accel', {})
+            accel_vals = [str(pa.get('X', '')), str(pa.get('Y', ''))]
+            if has_diag:
+                accel_vals.append(str(pa.get('D45', '')))
+            accel_vals.append(str(pa.get('Z', '')))
+            self._fill_row(t.rows[2 + i], [
+                run.get('name', ''), run.get('date', ''), lv_name,
+                f"{lv.get('Arig_h_90', '')}", f"{lv.get('Arig_v_90', '')}",
+            ] + accel_vals)
+        return t
+
     # ═════════════════════════════════════════════════════════════════════════
     # SECTION BUILDERS
     # ═════════════════════════════════════════════════════════════════════════
@@ -316,15 +377,10 @@ class TestReportGenerator:
 
         self._h1('Test Results Summary')
 
-        # Intro
-        level_descs = '; '.join(
-            f"Level {lv['name']}: SDS={lv['Sds_zh1']:.2f}g (z/h=1); SDS={lv['Sds_zh0']:.2f}g (z/h=0)"
-            for lv in levels
-        )
-        self._p(
-            f"Testing was successfully performed on the {cfg.get('subtitle', '')}. "
-            f"{level_descs}"
-        )
+        # Intro — separate paragraphs matching final report structure
+        self._p(f"Testing was successfully performed on the {cfg.get('subtitle', '')}.")
+        for lv in levels:
+            self._p(f"Level {lv['name']}: SDS={lv['Sds_zh1']:.2f}g (z/h=1); SDS={lv['Sds_zh0']:.2f}g (z/h=0)")
         self._blank()
         self._no_space(
             'As shown below, the acceleration time histories met the 90% ARIG requirement '
@@ -333,31 +389,8 @@ class TestReportGenerator:
         for _ in range(3):
             self._blank()
 
-        # ── Seismic levels table (10 cols) ────────────────────────────────────
-        # 2 data rows per level (z/h=1 and z/h=0)
-        n_data_rows = len(levels) * 2
-        t = self._add_table(1 + n_data_rows, 10)
-        self._fill_row(t.rows[0],
-            ['Level', 'SDS (g)', 'z/h', 'Hf / Rμ',
-             'AFLX-H (g)', 'ARIG-H (g)', 'AFLX-V (g)', 'ARIG-V (g)',
-             '0.9·ARIG-H', '0.9·ARIG-V'],
-            bold=True)
-        row_idx = 1
-        for lv in levels:
-            hf_rmu = f"{lv['Hf']} / {lv['Rmu']}"
-            self._fill_row(t.rows[row_idx], [
-                lv['name'], f"{lv['Sds_zh1']:.2f}", '1', hf_rmu,
-                f"{lv['Aflx_h']:.2f}", f"{lv['Arig_h']:.2f}",
-                f"{lv['Aflx_v']:.2f}", f"{lv['Arig_v']:.2f}",
-                f"{lv['Arig_h_90']:.2f}", f"{lv['Arig_v_90']:.2f}",
-            ])
-            self._fill_row(t.rows[row_idx + 1], [
-                lv['name'], f"{lv['Sds_zh0']:.2f}", '0', hf_rmu,
-                f"{lv['Aflx_h']:.2f}", f"{lv['Arig_h']:.2f}",
-                f"{lv['Aflx_v']:.2f}", f"{lv['Arig_v']:.2f}",
-                f"{lv['Arig_h_90']:.2f}", f"{lv['Arig_v_90']:.2f}",
-            ])
-            row_idx += 2
+        # ── Seismic levels table ───────────────────────────────────────────────
+        self._build_levels_table(levels)
         self._blank()
 
         # ── UUT summary table (7 cols, merged Dimensions header) ──────────────
@@ -368,10 +401,12 @@ class TestReportGenerator:
         # Row 1: sub-headers
         self._fill_row(t.rows[1], ['UUT', 'Model / Description', 'Mounting', 'Depth', 'Width', 'Height', 'Weight\n(lb)'], bold=True)
         for i, u in enumerate(uuts):
+            w = u.get('weight', '')
+            w_str = f'{int(w):,}' if w != '' else ''
             self._fill_row(t.rows[2 + i], [
                 str(u['number']), u['model'], u.get('mounting', ''),
                 str(u.get('depth', '')), str(u.get('width', '')), str(u.get('height', '')),
-                str(u.get('weight', '')),
+                w_str,
             ])
         self._blank()
 
@@ -390,29 +425,7 @@ class TestReportGenerator:
         self._blank()
 
         # ── Seismic run results table ─────────────────────────────────────────
-        has_diag = any(r.get('has_diagonal', False) for r in runs)
-        n_accel_cols = 4 if has_diag else 3  # X, Y, [45,] Z
-        n_cols = 5 + n_accel_cols
-        t = self._add_table(2 + len(runs), n_cols)
-        accel_header = ['X', 'Y', '45', 'Z'] if has_diag else ['X', 'Y', 'Z']
-        row0_vals = ['Test Run', 'Test Date', 'Level', '0.9·ARIG-H', '0.9·ARIG-V'] + ['Peak Table Accel. (g)'] * n_accel_cols
-        self._fill_row(t.rows[0], row0_vals, bold=True)
-        _merge_header_row(t, 0, 5, 4 + n_accel_cols, 'Peak Table Accel. (g)', bold=True)
-        self._fill_row(t.rows[1], ['Test Run', 'Test Date', 'Level', '0.9·ARIG-H', '0.9·ARIG-V'] + accel_header, bold=True)
-        for i, run in enumerate(runs):
-            lv_name = run.get('level', '')
-            lv = next((lv for lv in levels if lv['name'] == lv_name), {})
-            arig_h_90 = f"{lv.get('Arig_h_90', '')}"
-            arig_v_90 = f"{lv.get('Arig_v_90', '')}"
-            pa = run.get('peak_accel', {})
-            accel_vals = [str(pa.get('X', '')), str(pa.get('Y', ''))]
-            if has_diag:
-                accel_vals.append(str(pa.get('D45', '')))
-            accel_vals.append(str(pa.get('Z', '')))
-            self._fill_row(t.rows[2 + i], [
-                run.get('name', ''), run.get('date', ''), lv_name,
-                arig_h_90, arig_v_90,
-            ] + accel_vals)
+        self._build_run_results_table(runs, levels)
         self._blank()
 
         # ── Lab equipment table ───────────────────────────────────────────────
@@ -517,8 +530,10 @@ class TestReportGenerator:
         # Basic info block
         self._no_space(f"Manufacturer: {uut.get('manufacturer', '')} \u2013 Model: {uut.get('model', '')}")
         self._p(f"UUT Function: {uut.get('function', '')};  Serial/Unique ID: {uut.get('serial', '')}")
+        w = uut.get('weight', '')
+        w_str = f'{int(w):,}' if w != '' else ''
         self._p(f"Depth = {uut.get('depth','')}-in, Width = {uut.get('width','')}-in, "
-                f"Height = {uut.get('height','')}-in, Weight = {uut.get('weight',''):,}-lb")
+                f"Height = {uut.get('height','')}-in, Weight = {w_str}-lb")
         if lv:
             self._p(f"Maximum Test Level: SDS={lv.get('Sds_zh1',''):.2f}-g (z/h=1); "
                     f"SDS={lv.get('Sds_zh0',''):.2f}-g (z/h=0)")
@@ -567,17 +582,17 @@ class TestReportGenerator:
         trs_excel     = run_plots_cfg.get('trs_excel')
 
         self._h1(f"Seismic Run - {name}")
-        level_desc = ''
-        if lv:
-            level_desc = (f"SDS={lv.get('Sds_zh1',''):.2f}g (z/h=1); "
-                          f"SDS={lv.get('Sds_zh0',''):.2f}g (z/h=0)")
         self._no_space(
             f"The seismic level for {name} is shown below. "
             f"Detailed photographs and plots from the seismic test are included in "
             f"the sections below."
         )
-        if level_desc:
-            self._no_space(f"Level {lv_name}: {level_desc}")
+        self._blank()
+
+        # ── Seismic level table for this run ──────────────────────────────────
+        # Show only the level(s) applicable to this run
+        run_levels = [l for l in levels if l['name'] == lv_name] or levels
+        self._build_levels_table(run_levels)
         self._blank()
 
         # ── Pre/Post pictures (placeholder — photos not automated) ────────────
@@ -655,6 +670,10 @@ class TestReportGenerator:
             self._embed_plot(path)
         if not uut_plots:
             self._p(f'[No UUT accelerometer plots found in: {seismic_dir}]')
+
+        # ── Run results summary table (repeated at end of each run) ───────────
+        self._blank()
+        self._build_run_results_table([run], levels)
 
     def _build_appendix(self):
         cfg = self.cfg
