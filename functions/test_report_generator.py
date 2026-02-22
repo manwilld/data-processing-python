@@ -70,6 +70,36 @@ def _filter_plots(directory, include=None, exclude=None):
     return paths
 
 
+def _select_photos(directory, max_photos=None,
+                   extensions=('.jpg', '.jpeg', '.JPG', '.JPEG', '.png', '.PNG')):
+    """Return a sorted list of photo paths from directory.
+
+    If total count exceeds max_photos, returns an evenly-spaced sample that always
+    includes the first and last photo. If max_photos is None, returns all.
+
+    Parameters
+    ----------
+    directory  : str   Path to the photo directory.
+    max_photos : int   Maximum number of photos to return (None = unlimited).
+    extensions : tuple File extensions to include.
+    """
+    if not directory or not os.path.isdir(directory):
+        return []
+    photos = sorted([
+        os.path.join(directory, f) for f in os.listdir(directory)
+        if os.path.splitext(f)[1] in extensions
+    ])
+    if not photos:
+        return []
+    if max_photos is None or len(photos) <= max_photos:
+        return photos
+    if max_photos == 1:
+        return [photos[len(photos) // 2]]
+    # Evenly-spaced indices, always include first (0) and last (N-1)
+    indices = {round(i * (len(photos) - 1) / (max_photos - 1)) for i in range(max_photos)}
+    return [photos[i] for i in sorted(indices)]
+
+
 # ── Generator ─────────────────────────────────────────────────────────────────
 
 class TestReportGenerator:
@@ -159,6 +189,73 @@ class TestReportGenerator:
             if continuation_heading and i > 0 and i % plots_per_continuation == 0:
                 self._h2(continuation_heading)
             self._embed_plot(path)
+
+    # ── Photo helpers ─────────────────────────────────────────────────────────
+
+    @staticmethod
+    def _resize_photo(src_path, max_px=900):
+        """Return a BytesIO stream of the photo, resized to max_px on the longest side.
+
+        Keeps aspect ratio. Returns None on error. Caches nothing — caller embeds directly.
+        """
+        try:
+            from PIL import Image
+            import io
+            img = Image.open(src_path)
+            # Convert to RGB if needed (e.g. CMYK or RGBA JPEGs)
+            if img.mode not in ('RGB', 'L'):
+                img = img.convert('RGB')
+            w, h = img.size
+            scale = min(max_px / max(w, h), 1.0)  # Never upscale
+            if scale < 1.0:
+                new_w = max(1, round(w * scale))
+                new_h = max(1, round(h * scale))
+                img = img.resize((new_w, new_h), Image.LANCZOS)
+            buf = io.BytesIO()
+            img.save(buf, format='JPEG', quality=80, optimize=True)
+            buf.seek(0)
+            return buf
+        except Exception as e:
+            print(f"  WARNING: could not resize {os.path.basename(src_path)}: {e}")
+            return None
+
+    def _build_photo_grid(self, photos, cols=2, photo_width_in=3.0, max_px=900):
+        """Embed photos in a cols-wide grid table.
+
+        Photos are resized to max_px on their longest side before embedding,
+        keeping file size manageable.  Handles any number of photos: pads the
+        last row with empty cells if the count is not a multiple of cols.
+
+        Parameters
+        ----------
+        photos         : list[str]  Absolute paths to photo files.
+        cols           : int        Number of columns (default 2).
+        photo_width_in : float      Display width of each photo in inches.
+        max_px         : int        Maximum pixel dimension before embedding (default 900).
+        """
+        if not photos:
+            return None
+        photo_w = Inches(photo_width_in)
+        # Pad to a full row count
+        padded = list(photos)
+        remainder = len(padded) % cols
+        if remainder:
+            padded += [None] * (cols - remainder)
+        n_rows = len(padded) // cols
+
+        t = self._add_table(n_rows, cols, style='Table Grid')
+        for ri in range(n_rows):
+            for ci in range(cols):
+                photo = padded[ri * cols + ci]
+                cell = t.rows[ri].cells[ci]
+                if photo and os.path.isfile(photo):
+                    buf = self._resize_photo(photo, max_px=max_px)
+                    if buf:
+                        p = cell.paragraphs[0]
+                        p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                        p.add_run().add_picture(buf, width=photo_w)
+                # else: leave cell empty
+        return t
 
     # ── Table helpers ─────────────────────────────────────────────────────────
 
@@ -595,12 +692,37 @@ class TestReportGenerator:
         self._build_levels_table(run_levels)
         self._blank()
 
-        # ── Pre/Post pictures (placeholder — photos not automated) ────────────
+        # ── Pre-Test Pictures ─────────────────────────────────────────────────
         self._h2(f"Pre-Test Pictures ({name})")
-        self._p('[Pre-test photographs — see project photo archive]')
+        pre_cfg = run_plots_cfg.get('pre_test_photos', {})
+        pre_dir = pre_cfg.get('dir') if isinstance(pre_cfg, dict) else pre_cfg
+        if pre_dir:
+            pre_photos = _select_photos(pre_dir, max_photos=pre_cfg.get('max') if isinstance(pre_cfg, dict) else None)
+            if pre_photos:
+                n_pre = len(pre_photos)
+                total_pre = len(_select_photos(pre_dir))
+                print(f"  Embedding {n_pre} pre-test photos (of {total_pre} total)")
+                self._build_photo_grid(pre_photos, cols=2, photo_width_in=3.0)
+            else:
+                self._p(f'[No pre-test photos found in: {pre_dir}]')
+        else:
+            self._p('[Pre-test photographs — see project photo archive]')
 
+        # ── Post-Test Pictures ────────────────────────────────────────────────
         self._h2(f"Post-Test Pictures ({name})")
-        self._p('[Post-test photographs — see project photo archive]')
+        post_cfg = run_plots_cfg.get('post_test_photos', {})
+        post_dir = post_cfg.get('dir') if isinstance(post_cfg, dict) else post_cfg
+        if post_dir:
+            post_photos = _select_photos(post_dir, max_photos=post_cfg.get('max') if isinstance(post_cfg, dict) else None)
+            if post_photos:
+                n_post = len(post_photos)
+                total_post = len(_select_photos(post_dir))
+                print(f"  Embedding {n_post} post-test photos (of {total_post} total)")
+                self._build_photo_grid(post_photos, cols=2, photo_width_in=3.0)
+            else:
+                self._p(f'[No post-test photos found in: {post_dir}]')
+        else:
+            self._p('[Post-test photographs — see project photo archive]')
 
         # ── Response Spectra Plots ────────────────────────────────────────────
         self._h2(f"Response Spectra Plots ({name})")

@@ -182,22 +182,36 @@ project_info = {
     # Keys here override the top-level project_info for that report type.
     'reports': {
         'test_report': {
-            'template': '/tmp/template_report.docx',
+            # Template and output — using OpenClaw dev folder (not the real 25075 project)
+            'template': '/mnt/dropbox/_OpenClaw/data-processing-example/_matlab_baseline/TEMPLATE_Test Report_ASCE7_22.docx',
             'output':   '/tmp/dp-test/25075TR1.0_Test_Report.docx',
 
-            # Plot directories for each run (keyed by run name)
-            # Point at local /tmp copies during development; change to Dropbox paths for production.
+            # Plot directories for each run (keyed by run name).
+            # Supports any number of runs — just add another entry per run.
             'run_plots': {
                 'Run 1': {
-                    'seismic_dir': '/tmp/dp-test/plots_seismic/',
-                    'trs_excel':   '/tmp/dp-test/Run_1_Table_TRSvsRRS.xlsx',
+                    'seismic_dir': '/mnt/dropbox/_OpenClaw/data-processing-example/Run_1 Plots_Seismic/',
+                    'trs_excel':   '/mnt/dropbox/_OpenClaw/data-processing-example/Run_1_Table_TRSvsRRS.xlsx',
+
+                    # Pre/post test photos for this run.
+                    # 'dir'  : folder containing the photos (JPG/PNG).
+                    # 'max'  : maximum photos to embed (evenly sampled if total > max).
+                    #          Omit or set to None to embed all photos.
+                    'pre_test_photos':  {
+                        'dir': '/mnt/dropbox/_OpenClaw/data-processing-example/_matlab_baseline/1. Pre-Test/',
+                        'max': 12,   # 91 total → sample 12 evenly
+                    },
+                    'post_test_photos': {
+                        'dir': '/mnt/dropbox/_OpenClaw/data-processing-example/_matlab_baseline/2. Post-Test/',
+                        'max': 16,   # cap at 16 evenly sampled (53 total in folder)
+                    },
                 },
             },
 
             # Resonance plot directories (keyed by UUT number)
             'resonance_dirs': {
-                1: '/tmp/dp-test/uut1_res/',
-                2: '/tmp/dp-test/uut2_res/',
+                1: '/mnt/dropbox/_OpenClaw/data-processing-example/UUT_1_Plots_Resonance/',
+                2: '/mnt/dropbox/_OpenClaw/data-processing-example/UUT_2_Plots_Resonance/',
             },
         },
     },
