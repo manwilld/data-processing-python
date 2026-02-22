@@ -184,7 +184,7 @@ project_info = {
         'test_report': {
             # Template and output — using OpenClaw dev folder (not the real 25075 project)
             'template': '/mnt/dropbox/_OpenClaw/data-processing-example/_matlab_baseline/TEMPLATE_Test Report_ASCE7_22.docx',
-            'output':   '/tmp/dp-test/25075TR1.0_Test_Report.docx',
+            'output':   '/mnt/dropbox/_OpenClaw/data-processing-example/25075TR1.0_Test_Report.docx',
 
             # Plot directories for each run (keyed by run name).
             # Supports any number of runs — just add another entry per run.
