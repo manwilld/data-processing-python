@@ -1,5 +1,5 @@
 # Data Processing Python — Project Status
-_Last updated: 2026-02-21_
+_Last updated: 2026-02-22_
 
 ---
 
@@ -11,6 +11,7 @@ A Python port of Derek's MATLAB shake table test data processing pipeline. Takes
 - Time history plots (per channel)
 - Capacity curve (CC) and channel response (CH) plots
 - Transfer function / resonance plots
+- Complete Word test report (`.docx`) via `build_report.py`
 
 Mirrors the MATLAB pipeline at `/root/data-processing/` exactly. Outputs go to Dropbox at `/mnt/dropbox/_OpenClaw/data-processing-example/`. MATLAB baseline for comparison lives at `./_matlab_baseline/` (do not modify).
 
@@ -20,29 +21,34 @@ Mirrors the MATLAB pipeline at `/root/data-processing/` exactly. Outputs go to D
 
 ```
 /root/data-processing-python/
-├── run_seismic.py          # Main runner: seismic runs
-├── run_resonance.py        # Main runner: resonance/transfer function runs
+├── build_report.py             # Report dispatcher: --project --type
+├── run_seismic.py              # Main runner: seismic runs
+├── run_resonance.py            # Main runner: resonance/transfer function runs
+├── builders/
+│   ├── __init__.py
+│   └── test_report_builder.py  # Thin run() module for test report type
 ├── functions/
-│   ├── parse_csv.py        # CSV ingestion + trimming (fence-post inclusive)
-│   ├── filter_data.py      # Butterworth filter (order/cutoff per channel from config)
-│   ├── calc_trs.py         # TRS calculation (Newmark integration)
-│   ├── calc_cc.py          # Capacity curve calculation
-│   ├── calc_ch.py          # Channel response calculation
-│   ├── calc_seismic_parameters.py  # Arig, Aflx, RRS lookups
-│   ├── optimize_trs.py     # TRS optimization
-│   ├── process_seismic_run.py      # Orchestrates one seismic run
-│   ├── process_transfer_function.py # Orchestrates one resonance run
-│   ├── plot_th.py          # Time history plots
-│   ├── plot_trs.py         # TRS plots (single channel)
-│   ├── plot_trs_all.py     # TRS overlay plot (all channels)
-│   ├── plot_cc.py          # Capacity curve plot
-│   ├── plot_ch.py          # Channel response plot
-│   ├── plot_transfer.py    # Transfer function / resonance plot
-│   ├── plot_style.py       # Shared plot styling constants
-│   ├── save_trs.py         # Excel TRS table output
-│   └── save_plot.py        # SVG/PNG save with exact DPI/dimensions
+│   ├── parse_csv.py
+│   ├── filter_data.py
+│   ├── calc_trs.py
+│   ├── calc_cc.py
+│   ├── calc_ch.py
+│   ├── calc_seismic_parameters.py
+│   ├── optimize_trs.py
+│   ├── process_seismic_run.py
+│   ├── process_transfer_function.py
+│   ├── plot_th.py
+│   ├── plot_trs.py
+│   ├── plot_trs_all.py
+│   ├── plot_cc.py
+│   ├── plot_ch.py
+│   ├── plot_transfer.py
+│   ├── plot_style.py           # Shared plot styling constants (all 6 plot fns import this)
+│   ├── save_trs.py
+│   ├── save_plot.py
+│   └── test_report_generator.py  # TestReportGenerator class
 ├── compare/
-│   └── run_comparison.py   # Validation script vs MATLAB baseline
+│   └── run_comparison.py       # Validation script vs MATLAB baseline
 ├── tests/
 │   ├── test_calc_trs.py
 │   ├── test_optimize_trs.py
@@ -50,6 +56,7 @@ Mirrors the MATLAB pipeline at `/root/data-processing/` exactly. Outputs go to D
 │   └── test_parse_csv.py
 ├── examples/
 │   └── WCC_Booster/
+│       ├── project_config.py   # Single source of truth for all report types
 │       ├── seismic_config.yaml
 │       └── resonance_config.yaml
 └── requirements.txt
@@ -67,53 +74,75 @@ Mirrors the MATLAB pipeline at `/root/data-processing/` exactly. Outputs go to D
 | `run_resonance.py` — zero errors | ✅ |
 | `pytest tests/ -v` — all pass | ✅ |
 | `compare/run_comparison.py` — 113/113 PASS | ✅ |
+| Test report generator — runs clean | ✅ |
+| 5 visual bugs fixed | ✅ `8db3578` |
+| Photo grid support | ✅ `aa7d87e` |
 | Git: committed + pushed to main | ✅ |
 
-Pixel diff vs MATLAB baseline: 10–18 mean across all plots (acceptable — font rendering and antialiasing differences between matplotlib/Linux and MATLAB/Windows).
+---
+
+## Report Generator
+
+### How to Run
+
+```bash
+cd /root/data-processing-python
+python3 build_report.py --project examples/WCC_Booster --type test_report
+# Output: /tmp/dp-test/25075TR1.0_Test_Report.docx
+```
+
+### Architecture
+
+- `build_report.py` — dispatches to the correct builder, loads `project_config.py`, resolves paths
+- `builders/test_report_builder.py` — thin `run()` module (one per report type)
+- `functions/test_report_generator.py` — `TestReportGenerator` class; full section logic
+- `examples/WCC_Booster/project_config.py` — single config for all report types; `reports` dict holds type-specific overrides
+
+### Sections (in order)
+1. Cover page
+2. Test Results Summary (seismic levels table, UUT table, resonance results, run results, lab equipment)
+3. Test Procedure
+4. UUT Summary × N (resonance plots per UUT)
+5. Seismic Run × N (levels table, pre/post photos, TRS plots, TRS data table, TH plots, CC/CH, UUT accel plots, run results table)
+6. Appendix — Laboratory Accreditation
+
+### Photo Support
+
+- `_select_photos(dir, max_photos)` — sorted, evenly-spaced sample; handles any count
+- `_resize_photo(path, max_px=900)` — Pillow resize before embedding; keeps file small
+- `_build_photo_grid(photos, cols=2)` — 2-column table, auto-pads last row
+- Config per run:
+  ```python
+  'pre_test_photos':  {'dir': '...', 'max': 12},   # 12 of N evenly sampled
+  'post_test_photos': {'dir': '...', 'max': 16},   # 16 of N evenly sampled
+  ```
+
+### Multi-Run Support
+
+Fully loop-based — add entries to `runs` list and `run_plots` dict in config. Each run gets its own seismic level table, photo sections, TRS plots, data table, and run results table.
+
+### Current Output (WCC Booster)
+- 41 pages, 4.6MB
+- 12 pre-test photos (sampled from 129), 16 post-test photos (sampled from 53)
+- 49 plots (TRS, TH, CC/CH, resonance)
+- 1 run × 2 UUTs
 
 ---
 
 ## Key Design Decisions
 
-- **SVG output** instead of EMF (MATLAB default). SVG is Word 2016+ compatible vector format and renders cleanly without rasterization.
-- **Font**: Liberation Sans on Linux; Arial auto-selected on Windows. Visual match to MATLAB's Arial.
-- **Filter values** come from YAML config (not `.mat` files or interactive dialogs). Correct values extracted from `Run_1_filters.mat`:
-  - X/Y channels: order=3, cutoff=699.5 Hz
-  - Z channels: order=3, cutoff=200.0 Hz
-- **Natural frequency marker** in resonance plots: auto-detected peak (not user-click like MATLAB). Config `natural_frequencies` value is a search hint only.
-- **Plot dimensions**: exact match to MATLAB PaperPosition at 150 DPI — no `bbox_inches='tight'`:
-  - TRS / CC / CH / Resonance: 975×405 px (6.5×2.70 in)
-  - Table TH: 975×300 px (6.5×2.00 in)
-  - UUT TH: 975×270 px (6.5×1.80 in)
-- **Trimmed CSV endpoint**: inclusive (`<=`) to match MATLAB's 42001-row output.
-- **Resonance CSV column order**: sensor-grouped (matches MATLAB), not axis-grouped.
-- **Excel TRS table**: Z axis at columns 6–8 (not 9–11). 12 columns total.
+- **SVG output** instead of EMF (MATLAB default). SVG is Word 2016+ compatible.
+- **Font**: Liberation Sans on Linux; Arial auto-selected on Windows.
+- **Filter values** from YAML config. Correct values from `Run_1_filters.mat`: X/Y=699.5Hz order=3, Z=200Hz order=3.
+- **Natural frequency marker**: auto-detected peak (not user-click like MATLAB).
+- **Plot dimensions**: exact match to MATLAB PaperPosition at 150 DPI.
+- **PNG over SVG for report embedding**: python-docx SVG support is complex; PNGs exist alongside every SVG. Upgrade is a one-method change later.
+- **Photo resize**: photos resized to max 900px longest side before embedding to keep docx file size manageable.
+- **One `project_config.py` per project**: used for all report types; `reports` dict holds type-specific overrides.
 
 ---
 
-## What's Working Well
-
-- Full numerical match to MATLAB on all data outputs (CSV, Excel): max_diff=0.0
-- Plot dimensions exact match at 150 DPI
-- Config-driven filter values per channel
-- Auto-detected resonance peaks
-- Graceful multi-location font fallback
-- Clean comparison script that validates everything in one shot
-- Solid test suite (15/15 unit tests)
-
----
-
-## Known Acceptable Differences from MATLAB
-
-- Pixel diff 10–18 mean (font rendering: Liberation Sans on Linux vs MATLAB's Helvetica — not fixable without MATLAB's renderer)
-- SVG vs EMF format
-- Natural frequency annotation: auto-detected vs user-clicked
-- Config-driven vs `.mat`-file-driven filter presets
-- **TH plots: grid intentionally OFF** — MATLAB has grid on, but cross-engine grid line pixel positions differ enough to push mean diff from ~14 to ~24. Leaving grid off is closer to MATLAB visually at the pixel level.
-
----
-
-## How to Run
+## How to Run (Data Pipeline)
 
 ```bash
 cd /root/data-processing-python
@@ -133,13 +162,23 @@ python3 compare/run_comparison.py
 
 ---
 
-## What Might Still Need Improvement
+## Known Acceptable Differences from MATLAB
 
-1. **Real project integration** — WCC_Booster example works. How to onboard a new project isn't fully documented (how to create configs from scratch, where to point input CSV paths, etc.).
-2. **Word report integration** — outputs are SVG + Excel, but there's no pipeline yet to pull these into a Word report automatically (unlike the structural-calcs side which has `build_report.py`).
-3. **Windows testing** — all development and testing on Linux. Font rendering on Windows may shift pixel diffs; worth a spot-check run on Derek's machine.
-4. **Threshold tuning** — comparison script uses threshold=20.0 (mean pixel diff). Now that it's passing at 10–18, could tighten to ~25 to catch regressions while still allowing cross-engine variance.
-5. **No CI** — tests run manually. A GitHub Action would catch regressions automatically.
+- Pixel diff 10–18 mean (font: Liberation Sans on Linux vs MATLAB's Helvetica)
+- SVG vs EMF format
+- Natural frequency annotation: auto-detected vs user-clicked
+- Config-driven filter presets vs `.mat`-file-driven
+- **TH plots: grid intentionally OFF** — cross-engine grid line positions push diff higher
+
+---
+
+## What's Still Outstanding
+
+1. **SVG embedding in report** — currently PNG fallback; upgrade is one-method change in `_embed_plot()`
+2. **Photo captions** — photos embedded without captions; reference report has none either, but could add filename or sequential number
+3. **Windows test** — all dev on Linux; font rendering may shift slightly on Windows
+4. **No CI** — tests run manually; GitHub Action would catch regressions
+5. **Production paths** — `project_config.py` output path is `/tmp/dp-test/`; change `output` key to real project path when ready to produce a deliverable
 
 ---
 
@@ -148,3 +187,8 @@ python3 compare/run_comparison.py
 - Local: `/root/data-processing-python/`
 - Remote: `manwilld/data-processing-python`
 - Branch: `main` — clean, up to date
+- Key commits:
+  - `e30367c` — plot_style.py refactor (113/113 still pass)
+  - `5031d32` — initial test report builder
+  - `8db3578` — fix 5 visual bugs
+  - `aa7d87e` — photo grid support + Dropbox paths
