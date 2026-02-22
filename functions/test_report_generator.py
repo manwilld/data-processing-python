@@ -257,6 +257,37 @@ class TestReportGenerator:
                 # else: leave cell empty
         return t
 
+    def _build_photo_section(self, heading_text, photos, section_label, cols=2, photo_width_in=3.0):
+        """Build a labelled photo section: H2 heading + header row + photo grid."""
+        self._h2(heading_text)
+        if not photos:
+            self._p(f'[No {section_label} photos found]')
+            return
+        # Build table with a label header row above the photos
+        photo_w = Inches(photo_width_in)
+        padded = list(photos)
+        remainder = len(padded) % cols
+        if remainder:
+            padded += [None] * (cols - remainder)
+        n_photo_rows = len(padded) // cols
+
+        t = self._add_table(1 + n_photo_rows, cols, style='Table Grid')
+        # Header row with section label in each cell
+        for ci in range(cols):
+            t.rows[0].cells[ci].text = section_label
+            _set_cell_bold(t.rows[0].cells[ci])
+
+        for ri in range(n_photo_rows):
+            for ci in range(cols):
+                photo = padded[ri * cols + ci]
+                cell = t.rows[1 + ri].cells[ci]
+                if photo and os.path.isfile(photo):
+                    buf = self._resize_photo(photo, max_px=900)
+                    if buf:
+                        p = cell.paragraphs[0]
+                        p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                        p.add_run().add_picture(buf, width=photo_w)
+
     # ── Table helpers ─────────────────────────────────────────────────────────
 
     def _add_table(self, rows, cols, style='Table Grid'):
@@ -418,24 +449,22 @@ class TestReportGenerator:
     # ═════════════════════════════════════════════════════════════════════════
 
     def _build_cover(self):
-        cfg = self.cfg
+        cfg     = self.cfg
+        levels  = cfg.get('levels', [])
+        uuts    = cfg.get('uuts', [])
+        mfr     = cfg.get('manufacturer', {})
+        lab     = cfg.get('lab', {})
+        eng     = cfg.get('engineer', {})
 
         # Title and subtitle
         self._p(cfg.get('title', ''), style='Title')
         self._p(cfg.get('subtitle', ''), style='Subtitle')
 
-        # Testing scope
-        self._cover_header('Testing Scope')
-        self._p(cfg.get('testing_scope', ''))
-
-        # Test units table (Manufacturer | Testing Laboratory)
-        self._cover_header('Test Units')
+        # Manufacturer / Testing Laboratory 2-col table — no section header, appears first
         t = self._add_table(2, 2)
         t.rows[0].cells[0].text = 'Manufacturer'
         t.rows[0].cells[1].text = 'Testing Laboratory'
         self._set_row_bold(t.rows[0])
-        mfr = cfg.get('manufacturer', {})
-        lab = cfg.get('lab', {})
         t.rows[1].cells[0].text = (
             f"{mfr.get('company', '')}\n"
             f"{mfr.get('address', '')}\n"
@@ -448,10 +477,35 @@ class TestReportGenerator:
             f"Table: {lab.get('table_short', '')}"
         )
 
+        # Testing Scope
+        self._cover_header('Testing Scope')
+        self._p(cfg.get('testing_scope', ''))
+
+        # Seismic Levels table on cover (after scope, before Test Units)
+        self._build_levels_table(levels)
+
+        # Test Units — UUT dimensions / weight table
+        self._cover_header('Test Units')
+        t = self._add_table(2 + len(uuts), 7)
+        self._fill_row(t.rows[0],
+            ['UUT', 'Model / Description', 'Mounting', 'Dimensions (in)', '', '', 'Weight\n(lb)'],
+            bold=True)
+        _merge_header_row(t, 0, 3, 5, 'Dimensions (in)', bold=True)
+        self._fill_row(t.rows[1],
+            ['UUT', 'Model / Description', 'Mounting', 'Depth', 'Width', 'Height', 'Weight\n(lb)'],
+            bold=True)
+        for i, u in enumerate(uuts):
+            w = u.get('weight', '')
+            w_str = f'{int(w):,}' if w != '' else ''
+            self._fill_row(t.rows[2 + i], [
+                str(u['number']), u['model'], u.get('mounting', ''),
+                str(u.get('depth', '')), str(u.get('width', '')), str(u.get('height', '')),
+                w_str,
+            ])
+
         # Certification company
         self._blank()
         self._cover_header('Certification company')
-        eng = cfg.get('engineer', {})
         self._tight(eng.get('company', ''))
         self._tight(f"Certifying Engineer: {eng.get('name', '')}")
         self._tight(eng.get('license', ''))
@@ -467,51 +521,27 @@ class TestReportGenerator:
             self._fill_row(t.rows[1 + i], [rev.get('rev',''), rev.get('date',''), rev.get('description','')])
 
     def _build_test_results_summary(self):
-        cfg = self.cfg
+        cfg    = self.cfg
         levels = cfg.get('levels', [])
         uuts   = cfg.get('uuts', [])
         runs   = cfg.get('runs', [])
 
         self._h1('Test Results Summary')
 
-        # Intro — separate paragraphs matching final report structure
+        # Intro paragraph + level description
         self._p(f"Testing was successfully performed on the {cfg.get('subtitle', '')}.")
         for lv in levels:
             self._p(f"Level {lv['name']}: SDS={lv['Sds_zh1']:.2f}g (z/h=1); SDS={lv['Sds_zh0']:.2f}g (z/h=0)")
-        self._blank()
-        self._no_space(
-            'As shown below, the acceleration time histories met the 90% ARIG requirement '
-            'and the test was completed successfully.'
-        )
-        for _ in range(3):
-            self._blank()
 
-        # ── Seismic levels table ───────────────────────────────────────────────
-        self._build_levels_table(levels)
-        self._blank()
-
-        # ── UUT summary table (7 cols, merged Dimensions header) ──────────────
+        # ── Resonance results table (first in section, matching reference) ────
         t = self._add_table(2 + len(uuts), 7)
-        # Row 0: merged header for Dimensions
-        self._fill_row(t.rows[0], ['UUT', 'Model / Description', 'Mounting', 'Dimensions (in)', '', '', 'Weight\n(lb)'], bold=True)
-        _merge_header_row(t, 0, 3, 5, 'Dimensions (in)', bold=True)
-        # Row 1: sub-headers
-        self._fill_row(t.rows[1], ['UUT', 'Model / Description', 'Mounting', 'Depth', 'Width', 'Height', 'Weight\n(lb)'], bold=True)
-        for i, u in enumerate(uuts):
-            w = u.get('weight', '')
-            w_str = f'{int(w):,}' if w != '' else ''
-            self._fill_row(t.rows[2 + i], [
-                str(u['number']), u['model'], u.get('mounting', ''),
-                str(u.get('depth', '')), str(u.get('width', '')), str(u.get('height', '')),
-                w_str,
-            ])
-        self._blank()
-
-        # ── Resonance results table (7 cols, merged Resonant Freq header) ──────
-        t = self._add_table(2 + len(uuts), 7)
-        self._fill_row(t.rows[0], ['UUT', 'Test Date', 'Level', 'Result', 'Resonant Freq. (Hz)', '', ''], bold=True)
+        self._fill_row(t.rows[0],
+            ['UUT', 'Test Date', 'Level', 'Result', 'Resonant Freq. (Hz)', '', ''],
+            bold=True)
         _merge_header_row(t, 0, 4, 6, 'Resonant Freq. (Hz)', bold=True)
-        self._fill_row(t.rows[1], ['UUT', 'Test Date', 'Level', 'Result', 'F-B', 'S-S', 'V'], bold=True)
+        self._fill_row(t.rows[1],
+            ['UUT', 'Test Date', 'Level', 'Result', 'F-B', 'S-S', 'V'],
+            bold=True)
         for i, u in enumerate(uuts):
             nf = u.get('nat_freq', {})
             self._fill_row(t.rows[2 + i], [
@@ -519,24 +549,13 @@ class TestReportGenerator:
                 u.get('result', ''),
                 str(nf.get('fb', '')), str(nf.get('ss', '')), str(nf.get('v', '')),
             ])
-        self._blank()
 
-        # ── Seismic run results table ─────────────────────────────────────────
+        # "As shown below" + run results table
+        self._no_space(
+            'As shown below, the acceleration time histories met the 90% ARIG requirement '
+            'and the test was completed successfully.'
+        )
         self._build_run_results_table(runs, levels)
-        self._blank()
-
-        # ── Lab equipment table ───────────────────────────────────────────────
-        equip = cfg.get('lab_equipment', [])
-        t = self._add_table(1 + len(equip), 8)
-        self._fill_row(t.rows[0],
-            ['Lab ID', 'Ch.', 'Description', 'Manufacturer', 'Model', 'Serial', 'Cal. Date', 'Cal. Due'],
-            bold=True)
-        for i, eq in enumerate(equip):
-            self._fill_row(t.rows[1 + i], [
-                eq.get('lab_id',''), eq.get('ch',''), eq.get('description',''),
-                eq.get('manufacturer',''), eq.get('model',''), eq.get('serial',''),
-                eq.get('cal_date',''), eq.get('cal_due',''),
-            ])
 
     def _build_test_procedure(self):
         cfg = self.cfg
@@ -614,6 +633,20 @@ class TestReportGenerator:
         self._cover_header('Shake Table Information')
         self._p(f"Table: {lab.get('table_long', '')}")
         self._p(lab.get('accreditation', ''))
+
+        # ── Lab equipment / calibration table (end of Test Procedure) ─────────
+        equip = cfg.get('lab_equipment', [])
+        if equip:
+            t = self._add_table(1 + len(equip), 8)
+            self._fill_row(t.rows[0],
+                ['Lab ID', 'Ch.', 'Description', 'Manufacturer', 'Model', 'Serial', 'Cal. Date', 'Cal. Due'],
+                bold=True)
+            for i, eq in enumerate(equip):
+                self._fill_row(t.rows[1 + i], [
+                    eq.get('lab_id', ''), eq.get('ch', ''), eq.get('description', ''),
+                    eq.get('manufacturer', ''), eq.get('model', ''), eq.get('serial', ''),
+                    eq.get('cal_date', ''), eq.get('cal_due', ''),
+                ])
 
     def _build_uut_summary(self, uut):
         cfg = self.cfg
@@ -693,36 +726,28 @@ class TestReportGenerator:
         self._blank()
 
         # ── Pre-Test Pictures ─────────────────────────────────────────────────
-        self._h2(f"Pre-Test Pictures ({name})")
-        pre_cfg = run_plots_cfg.get('pre_test_photos', {})
-        pre_dir = pre_cfg.get('dir') if isinstance(pre_cfg, dict) else pre_cfg
+        pre_cfg   = run_plots_cfg.get('pre_test_photos', {})
+        pre_dir   = pre_cfg.get('dir') if isinstance(pre_cfg, dict) else pre_cfg
+        pre_max   = pre_cfg.get('max') if isinstance(pre_cfg, dict) else None
+        pre_photos = _select_photos(pre_dir, max_photos=pre_max) if pre_dir else []
         if pre_dir:
-            pre_photos = _select_photos(pre_dir, max_photos=pre_cfg.get('max') if isinstance(pre_cfg, dict) else None)
-            if pre_photos:
-                n_pre = len(pre_photos)
-                total_pre = len(_select_photos(pre_dir))
-                print(f"  Embedding {n_pre} pre-test photos (of {total_pre} total)")
-                self._build_photo_grid(pre_photos, cols=2, photo_width_in=3.0)
-            else:
-                self._p(f'[No pre-test photos found in: {pre_dir}]')
-        else:
-            self._p('[Pre-test photographs — see project photo archive]')
+            total_pre = len(_select_photos(pre_dir))
+            print(f"  Embedding {len(pre_photos)} pre-test photos (of {total_pre} total)")
+        self._build_photo_section(
+            f"Pre-Test Pictures ({name})", pre_photos, 'Pre-test',
+        )
 
         # ── Post-Test Pictures ────────────────────────────────────────────────
-        self._h2(f"Post-Test Pictures ({name})")
-        post_cfg = run_plots_cfg.get('post_test_photos', {})
-        post_dir = post_cfg.get('dir') if isinstance(post_cfg, dict) else post_cfg
+        post_cfg   = run_plots_cfg.get('post_test_photos', {})
+        post_dir   = post_cfg.get('dir') if isinstance(post_cfg, dict) else post_cfg
+        post_max   = post_cfg.get('max') if isinstance(post_cfg, dict) else None
+        post_photos = _select_photos(post_dir, max_photos=post_max) if post_dir else []
         if post_dir:
-            post_photos = _select_photos(post_dir, max_photos=post_cfg.get('max') if isinstance(post_cfg, dict) else None)
-            if post_photos:
-                n_post = len(post_photos)
-                total_post = len(_select_photos(post_dir))
-                print(f"  Embedding {n_post} post-test photos (of {total_post} total)")
-                self._build_photo_grid(post_photos, cols=2, photo_width_in=3.0)
-            else:
-                self._p(f'[No post-test photos found in: {post_dir}]')
-        else:
-            self._p('[Post-test photographs — see project photo archive]')
+            total_post = len(_select_photos(post_dir))
+            print(f"  Embedding {len(post_photos)} post-test photos (of {total_post} total)")
+        self._build_photo_section(
+            f"Post-Test Pictures ({name})", post_photos, 'Post-test',
+        )
 
         # ── Response Spectra Plots ────────────────────────────────────────────
         self._h2(f"Response Spectra Plots ({name})")
@@ -740,17 +765,16 @@ class TestReportGenerator:
 
         # ── Response Spectra Data (TRS table from Excel) ──────────────────────
         self._h2(f"Response Spectra Data ({name})")
-        # Lowest resonance note
-        if lv:
-            uuts = cfg.get('uuts', [])
-            all_nat = [min(u.get('nat_freq',{}).values()) for u in uuts if u.get('nat_freq')]
-            if all_nat:
-                low_res = min(all_nat)
-                self._p(
-                    f"As shown in the resonance search plots, the lowest resonant "
-                    f"frequency is {low_res:.1f} Hz. The low cutoff frequency is "
-                    f"determined from the resonance search."
-                )
+        # Lowest resonance note — wording matches reference
+        uuts_list = cfg.get('uuts', [])
+        all_nat = [min(u.get('nat_freq', {}).values()) for u in uuts_list if u.get('nat_freq')]
+        if all_nat:
+            low_res = min(all_nat)
+            self._p(
+                f"As is shown in the \u201cResonant Frequency Search Plots\u201d section of the UUT Summary, "
+                f"the lowest resonant frequency is {low_res:.1f} Hz. The low cutoff frequency is "
+                f"determined from the resonance search."
+            )
         trs_rows, trs_annotations = self._read_trs_excel(trs_excel)
         self._build_trs_table(trs_rows)
 
@@ -760,6 +784,9 @@ class TestReportGenerator:
             f"Per {cfg.get('test_standard', '')} Section 6.5.4.2.3, the peak shake table "
             f"acceleration shall equal or exceed 90 percent of ARIG in each orthogonal direction."
         )
+        # Run results table immediately after intro text (per reference structure)
+        self._build_run_results_table([run], levels)
+
         th_plots = _filter_plots(seismic_dir, include=['TH_Table'])
         for p in th_plots:
             self._embed_plot(p)
@@ -780,7 +807,6 @@ class TestReportGenerator:
 
         # ── Unit Accelerometer Plots ──────────────────────────────────────────
         self._h2(f"Unit Accelerometer Plots ({name})")
-        # UUT plots: everything that's not a Table channel, TRSall, CC, or CH
         uut_plots = _filter_plots(
             seismic_dir,
             exclude=['Table_', 'TRSvsRRS_All', '_CC', '_CH'],
@@ -792,10 +818,6 @@ class TestReportGenerator:
             self._embed_plot(path)
         if not uut_plots:
             self._p(f'[No UUT accelerometer plots found in: {seismic_dir}]')
-
-        # ── Run results summary table (repeated at end of each run) ───────────
-        self._blank()
-        self._build_run_results_table([run], levels)
 
     def _build_appendix(self):
         cfg = self.cfg
