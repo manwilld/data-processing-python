@@ -6,28 +6,22 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
 
+from . import plot_style as S
+
 
 def plot_trs_all(run_name, accel_name, axes, freq72, RRS_h, RRS_v,
                  Aflx_h, Aflx_v, Arig_h, Arig_v, damping, low_cutoff,
                  freq06_dict, TRS06_dict, plot_options):
     """Create TRS vs RRS overlay plot for all axes."""
-    wide = plot_options.get('wide', 6.5)
-    tall = plot_options.get('tall_trs', 2.7)
-    font_name = plot_options.get('font_name', 'Arial')
-    font_size_title = plot_options.get('font_size_title', 11)
-    font_size_axes = plot_options.get('font_size_axes', 11)
-    font_size_ticks = plot_options.get('font_size_ticks', 10)
-    font_size_text = plot_options.get('font_size_text', 7)
-    font_size_legend = plot_options.get('font_size_legend', 6)
+    # --- Figure size ---
+    wide      = plot_options.get('wide', S.FIG_WIDTH)
+    tall      = plot_options.get('tall_trs', S.FIG_TALL_TRS)
+    font_name = plot_options.get('font_name', S.FONT_FAMILY)
 
-    max_trs = max((np.max(TRS06_dict[a]) for a in axes if a in TRS06_dict), default=1.0)
-
-    x_ticks = [0.5, 1, 1.3, 8.3, 10, 20, 35]
-    x_min, x_max = 0.5, 35
-    y_ticks = [0.1, 0.5, 1, 5, 10, 50]
-
+    # --- Y-axis range ---
+    max_trs  = max((np.max(TRS06_dict[a]) for a in axes if a in TRS06_dict), default=1.0)
     is_table = 'Table' in accel_name
-    upper_y = max(max_trs, 1.3 * Aflx_h)
+    upper_y  = max(max_trs, 1.3 * Aflx_h)
 
     if upper_y < 3:
         y_max = 4
@@ -42,90 +36,111 @@ def plot_trs_all(run_name, accel_name, axes, freq72, RRS_h, RRS_v,
 
     y_min = min(np.floor(Arig_v * 0.85 * 10) / 10, 0.9)
 
+    # --- Figure and axes ---
     fig = plt.figure(figsize=(wide, tall))
-    fig.patch.set_facecolor('white')
+    fig.patch.set_facecolor(S.BG_FIGURE)
     ax = fig.add_subplot(111)
-    ax.set_facecolor('white')
+    ax.set_facecolor(S.BG_AXES)
 
     ax.set_xscale('log')
     ax.set_yscale('log')
 
-    # --- TRS lines per axis (use ax.plot not loglog) ---
-    line_colors = {'X': 'black', 'Y': 'magenta', 'D': 'green', 'Z': 'cyan'}
+    # ── TRS curves per axis ────────────────────────────────────────────────────
     for axis in axes:
         if axis in freq06_dict and axis in TRS06_dict:
-            color = line_colors.get(axis, 'black')
+            color = S.TRS_ALL_COLORS.get(axis, 'black')
             ax.plot(freq06_dict[axis], TRS06_dict[axis],
-                    color=color, linewidth=1.0, label=f'TRS_{axis}')
+                    color=color, linewidth=S.TRS_LW, label=f'TRS_{axis}')
 
     if is_table:
-        light_blue = [0.7, 0.7, 1.0]
+        # RRS horizontal and vertical
+        ax.plot(freq72, RRS_h,
+                color=S.RRS_COLOR, linestyle=S.RRS_STYLE, linewidth=S.RRS_LW,
+                label='RRS_h')
+        ax.plot(freq72, RRS_v,
+                color=S.RRS_COLOR, linestyle=S.RRS_STYLE, linewidth=S.RRS_LW,
+                label='RRS_v')
+        ax.plot(freq72, 0.9 * RRS_h,
+                color=S.RRS_90_COLOR, linestyle=S.RRS_90_STYLE, linewidth=S.RRS_90_LW)
+        ax.plot(freq72, 0.9 * RRS_v,
+                color=S.RRS_90_COLOR, linestyle=S.RRS_90_STYLE, linewidth=S.RRS_90_LW)
+        ax.plot(freq72, 1.3 * RRS_h,
+                color=S.RRS_130_COLOR, linestyle=S.RRS_130_STYLE, linewidth=S.RRS_130_LW)
 
-        ax.plot(freq72, RRS_h, color='blue', linestyle='--', linewidth=1.5, label='RRS_h')
-        ax.plot(freq72, RRS_v, color='blue', linestyle='--', linewidth=1.5, label='RRS_v')
-        ax.plot(freq72, 0.9 * RRS_h, color='red', linestyle='--', linewidth=0.5)
-        ax.plot(freq72, 0.9 * RRS_v, color='red', linestyle='--', linewidth=0.5)
-        ax.plot(freq72, 1.3 * RRS_h, color='yellow', linestyle='--', linewidth=0.5)
+        # Aflx_h — text + light blue line (left segment)
+        ax.plot([freq72[0], 1.3], [Aflx_h, Aflx_h],
+                color=S.REF_LINE_COLOR, linestyle=S.REF_LINE_STYLE, linewidth=S.REF_LINE_LW)
+        ax.text(S.TRS_X_LIM[0] * 1.1, Aflx_h, f'Aflx_h = {Aflx_h:.2f}',
+                color=S.REF_TEXT_COLOR, ha='left', va='top', fontsize=S.FONT_SIZE_TEXT)
 
-        # Aflx_h line and text (light blue line, blue text)
-        ax.plot([freq72[0], 1.3], [Aflx_h, Aflx_h], color=light_blue, linestyle='--', linewidth=0.25)
-        ax.text(x_min * 1.1, Aflx_h, f'Aflx_h = {Aflx_h:.2f}', color='blue',
-                ha='left', va='top', fontsize=font_size_text)
+        # Aflx_v — text + light blue line (left segment)
+        ax.plot([freq72[0], 1.3], [Aflx_v, Aflx_v],
+                color=S.REF_LINE_COLOR, linestyle=S.REF_LINE_STYLE, linewidth=S.REF_LINE_LW)
+        ax.text(S.TRS_X_LIM[0] * 1.1, Aflx_v, f'Aflx_v = {Aflx_v:.2f}',
+                color=S.REF_TEXT_COLOR, ha='left', va='bottom', fontsize=S.FONT_SIZE_TEXT)
 
-        # Aflx_v line and text
-        ax.plot([freq72[0], 1.3], [Aflx_v, Aflx_v], color=light_blue, linestyle='--', linewidth=0.25)
-        ax.text(x_min * 1.1, Aflx_v, f'Aflx_v = {Aflx_v:.2f}', color='blue',
-                ha='left', va='bottom', fontsize=font_size_text)
+        # Arig_h — text + light blue line (right segment)
+        ax.plot([8.3, freq72[-1]], [Arig_h, Arig_h],
+                color=S.REF_LINE_COLOR, linestyle=S.REF_LINE_STYLE, linewidth=S.REF_LINE_LW)
+        ax.text(10, Arig_h, f'Arig_h = {Arig_h:.2f}',
+                color=S.REF_TEXT_COLOR, ha='left', va='top', fontsize=S.FONT_SIZE_TEXT)
 
-        # Arig_h line and text
-        ax.plot([8.3, freq72[-1]], [Arig_h, Arig_h], color=light_blue, linestyle='--', linewidth=0.25)
-        ax.text(10, Arig_h, f'Arig_h = {Arig_h:.2f}', color='blue',
-                ha='left', va='top', fontsize=font_size_text)
+        # Arig_v — text + light blue line (right segment)
+        ax.plot([8.3, freq72[-1]], [Arig_v, Arig_v],
+                color=S.REF_LINE_COLOR, linestyle=S.REF_LINE_STYLE, linewidth=S.REF_LINE_LW)
+        ax.text(10, Arig_v, f'Arig_v = {Arig_v:.2f}',
+                color=S.REF_TEXT_COLOR, ha='left', va='bottom', fontsize=S.FONT_SIZE_TEXT)
 
-        # Arig_v line and text
-        ax.plot([8.3, freq72[-1]], [Arig_v, Arig_v], color=light_blue, linestyle='--', linewidth=0.25)
-        ax.text(10, Arig_v, f'Arig_v = {Arig_v:.2f}', color='blue',
-                ha='left', va='bottom', fontsize=font_size_text)
+        # Low cutoff — vertical light blue line + blue text
+        ax.plot([low_cutoff, low_cutoff], [0.1, 100],
+                color=S.LOW_CUTOFF_LINE_COLOR, linestyle=S.LOW_CUTOFF_LINE_STYLE,
+                linewidth=S.LOW_CUTOFF_LINE_LW)
+        ax.text(low_cutoff, y_min, f' {low_cutoff:.1f}-Hz Lower Limit',
+                color=S.REF_TEXT_COLOR, ha='left', va='bottom', fontsize=S.FONT_SIZE_TEXT)
 
-        # Low cutoff vertical and text (light blue line, blue text)
-        ax.plot([low_cutoff, low_cutoff], [0.1, 100], color=light_blue, linestyle='--', linewidth=0.25)
-        ax.text(low_cutoff, y_min, f' {low_cutoff:.1f}-Hz Lower Limit', color='blue',
-                ha='left', va='bottom', fontsize=font_size_text)
-
-    ax.set_xlim([x_min, x_max])
+    # --- Axis limits ---
+    ax.set_xlim(S.TRS_X_LIM)
     ax.set_ylim([y_min, y_max])
 
-    # Grid on (MATLAB grid on after hold off)
-    ax.grid(True, which='major', color='lightgray', linewidth=0.4)
-    ax.grid(True, which='minor', color='lightgray', linewidth=0.2)
+    # --- Grid ---
+    ax.grid(True, which='major', color=S.TRS_GRID_MAJOR_COLOR, linewidth=S.TRS_GRID_MAJOR_LW)
+    ax.grid(True, which='minor', color=S.TRS_GRID_MINOR_COLOR, linewidth=S.TRS_GRID_MINOR_LW)
 
-    # Custom tick labels AFTER all plotting
-    ax.set_xticks(x_ticks)
-    ax.xaxis.set_major_formatter(ticker.FixedFormatter([str(t) for t in x_ticks]))
+    # ── Tick labels set AFTER all plotting ────────────────────────────────────
+    ax.set_xticks(S.TRS_X_TICKS)
+    ax.xaxis.set_major_formatter(ticker.FixedFormatter([str(t) for t in S.TRS_X_TICKS]))
     ax.xaxis.set_minor_locator(ticker.AutoMinorLocator())
 
-    ax.set_yticks(y_ticks)
-    ax.yaxis.set_major_formatter(ticker.FixedFormatter([str(t) for t in y_ticks]))
+    ax.set_yticks(S.TRS_Y_TICKS)
+    ax.yaxis.set_major_formatter(ticker.FixedFormatter([str(t) for t in S.TRS_Y_TICKS]))
     ax.yaxis.set_minor_locator(ticker.AutoMinorLocator())
 
-    ax.tick_params(axis='both', which='major', direction='in',
-                   top=True, right=True, length=5, width=0.5,
-                   labelsize=font_size_ticks)
-    ax.tick_params(axis='both', which='minor', direction='in',
-                   top=True, right=True, length=3, width=0.5)
+    ax.tick_params(axis='both', which='major', direction=S.TICK_DIRECTION,
+                   top=S.TICK_TOP, right=S.TICK_RIGHT,
+                   length=S.TICK_MAJOR_LENGTH_TRS, width=S.TICK_MAJOR_WIDTH,
+                   labelsize=S.FONT_SIZE_TICKS)
+    ax.tick_params(axis='both', which='minor', direction=S.TICK_DIRECTION,
+                   top=S.TICK_TOP, right=S.TICK_RIGHT,
+                   length=S.TICK_MINOR_LENGTH, width=S.TICK_MINOR_WIDTH)
     ax.spines['top'].set_visible(True)
     ax.spines['right'].set_visible(True)
 
+    # --- Title and labels ---
     if is_table:
-        title = (f"TRS vs. RRS: {accel_name.replace('_',' ')} "
-                 f"({run_name.replace('_',' ')})")
+        title = (f"TRS vs. RRS: {accel_name.replace('_', ' ')} "
+                 f"({run_name.replace('_', ' ')})")
     else:
-        title = f"TRS: {accel_name.replace('_',' ')} ({run_name.replace('_',' ')})"
-    ax.set_title(title, fontsize=font_size_title, fontweight='bold')
-    ax.set_xlabel('Frequency (Hz)', fontsize=font_size_axes)
-    ylabel = f'Spectral Acceleration (g)\n{int(damping*100)}% Damping'
-    ax.set_ylabel(ylabel, fontsize=font_size_axes)
-    ax.legend(loc='upper left', fontsize=font_size_legend, frameon=True)
+        title = f"TRS: {accel_name.replace('_', ' ')} ({run_name.replace('_', ' ')})"
+    ax.set_title(title, fontsize=S.FONT_SIZE_TITLE, fontweight=S.FONT_WEIGHT_TITLE)
 
-    fig.subplots_adjust(left=0.130, right=0.904, top=0.880, bottom=0.160)
+    ax.set_xlabel('Frequency (Hz)', fontsize=S.FONT_SIZE_AXES)
+    ax.set_ylabel(f'Spectral Acceleration (g)\n{int(damping * 100)}% Damping',
+                  fontsize=S.FONT_SIZE_AXES)
+    ax.legend(loc='upper left', fontsize=S.FONT_SIZE_LEGEND, frameon=True)
+
+    # --- Margins ---
+    fig.subplots_adjust(
+        left=S.MARGINS_LEFT, right=S.MARGINS_RIGHT,
+        top=S.MARGINS_TRS_TOP, bottom=S.MARGINS_TRS_BOTTOM,
+    )
     return fig

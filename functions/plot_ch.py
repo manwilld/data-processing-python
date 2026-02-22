@@ -6,66 +6,73 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
 
+from . import plot_style as S
+
 
 def plot_ch(ch_result, run_name, plot_options):
     """Create magnitude squared coherence plot matching MATLAB plotCH.m output."""
-    wide = plot_options.get('wide', 6.5)
-    tall = plot_options.get('tall_ch', 2.7)
-    font_name = plot_options.get('font_name', 'Arial')
-    font_size_title = plot_options.get('font_size_title', 11)
-    font_size_axes = plot_options.get('font_size_axes', 11)
-    font_size_ticks = plot_options.get('font_size_ticks', 10)
+    # --- Figure size ---
+    wide      = plot_options.get('wide', S.FIG_WIDTH)
+    tall      = plot_options.get('tall_ch', S.FIG_TALL_CH)
+    font_name = plot_options.get('font_name', S.FONT_FAMILY)
 
-    ticks = [1.3, 10, 20, 33.3]
-    y_ticks = [0.0, 0.25, 0.5, 0.75, 1.0]
-
+    # --- Figure and axes ---
     fig = plt.figure(figsize=(wide, tall))
-    fig.patch.set_facecolor('white')
+    fig.patch.set_facecolor(S.BG_FIGURE)
     ax = fig.add_subplot(111)
-    ax.set_facecolor('white')
+    ax.set_facecolor(S.BG_AXES)
 
     ax.set_xscale('log')
-    ax.set_xticks(ticks)
-    ax.set_xticklabels([str(t) for t in ticks], fontsize=font_size_ticks)
+    ax.set_xticks(S.CH_X_TICKS)
+    ax.set_xticklabels([str(t) for t in S.CH_X_TICKS], fontsize=S.FONT_SIZE_TICKS)
 
-    # MATLAB colors: k (XY), c (XZ), m (YZ)
-    colors = ['k', 'c', 'm']
+    # --- Coherence pair traces ---
     legend_entries = []
-
     for k, pair in enumerate(ch_result['pairs']):
-        color = colors[k % len(colors)]
-        ax.semilogx(pair['frequencies'], pair['coherence'], color, linewidth=0.75)
+        color = S.CC_CH_PAIR_COLORS[k % len(S.CC_CH_PAIR_COLORS)]
+        ax.semilogx(pair['frequencies'], pair['coherence'], color,
+                    linewidth=S.CH_SIGNAL_LW)
         legend_entries.append(pair['axes'])
 
-    # Threshold at 0.5 (red dashed)
+    # --- Threshold line ---
     if ch_result['pairs']:
         f = ch_result['pairs'][0]['frequencies']
-        ax.semilogx([f[0], f[-1]], [0.5, 0.5], 'r--', linewidth=1.0)
+        ax.semilogx([f[0], f[-1]], [S.CH_THRESHOLD, S.CH_THRESHOLD],
+                    color=S.CH_THRESHOLD_COLOR, linestyle=S.CH_THRESHOLD_STYLE,
+                    linewidth=S.CH_THRESHOLD_LW)
 
-    ax.set_xlim([1.3, 33.3])
-    ax.set_ylim([0, 1])
-    ax.set_yticks(y_ticks)
+    # --- Axis limits ---
+    ax.set_xlim(S.CH_X_LIM)
+    ax.set_ylim(S.CH_Y_LIM)
+    ax.set_yticks(S.CH_Y_TICKS)
 
-    ax.grid(True, which='major', linewidth=0.5)
+    # --- Grid ---
+    ax.grid(True, which='major', linewidth=S.CH_GRID_LW)
 
+    # --- Title and labels ---
     title = f"Magnitude Squared Coherence ({run_name.replace('_', ' ')})"
-    ax.set_title(title, fontname=font_name, fontsize=font_size_title,
-                 fontweight='bold')
-    ax.legend(legend_entries, loc='upper left', fontsize=7)
+    ax.set_title(title, fontname=font_name,
+                 fontsize=S.FONT_SIZE_TITLE, fontweight=S.FONT_WEIGHT_TITLE)
+    ax.legend(legend_entries, loc='upper left', fontsize=S.FONT_SIZE_LEGEND_CC_CH)
 
     max_ch = ch_result['max_ch']
     xlabel_text = (f'{"":>46s}Frequency (Hz) '
                    f'{"":>11s}Max. Coher. = {max_ch:.2f}')
-    ax.set_xlabel(xlabel_text, fontname=font_name, fontsize=font_size_axes,
-                   fontweight='bold')
-    ax.set_ylabel('Coherence', fontname=font_name, fontsize=font_size_axes,
-                   fontweight='bold')
+    ax.set_xlabel(xlabel_text, fontname=font_name,
+                  fontsize=S.FONT_SIZE_AXES, fontweight='bold')
+    ax.set_ylabel('Coherence', fontname=font_name,
+                  fontsize=S.FONT_SIZE_AXES, fontweight='bold')
 
-    # Tick direction: inward on all 4 sides, full box
-    ax.tick_params(axis='both', which='both', direction='in',
-                   top=True, right=True, length=4, width=0.5)
+    # --- Tick style ---
+    ax.tick_params(axis='both', which='both', direction=S.TICK_DIRECTION,
+                   top=S.TICK_TOP, right=S.TICK_RIGHT,
+                   length=S.TICK_MAJOR_LENGTH, width=S.TICK_MAJOR_WIDTH)
     ax.spines['top'].set_visible(True)
     ax.spines['right'].set_visible(True)
 
-    fig.subplots_adjust(left=0.130, right=0.904, top=0.919, bottom=0.160)
+    # --- Margins ---
+    fig.subplots_adjust(
+        left=S.MARGINS_LEFT, right=S.MARGINS_RIGHT,
+        top=S.MARGINS_CH_TOP, bottom=S.MARGINS_CH_BOTTOM,
+    )
     return fig
