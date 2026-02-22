@@ -34,3 +34,31 @@
 - Pixel diff 10-18 mean across plots (font rendering, antialiasing, minor margin differences)
 - Natural frequency marker in resonance plots: auto-detected peak (not user-click)
 - Filter/nat-freq config in YAML instead of .mat files and interactive dialogs
+
+## Plot Style Centralization (2026-02-21 evening) ✅ — 113/113 PASS
+
+Refactored all plot formatting into `functions/plot_style.py` as a single config file.
+
+### What moved to plot_style.py
+- FONT: family, sizes (title/axes/ticks/text/legend), weights
+- FIGURE SIZE: DPI, width, height per plot type (TRS/TH_table/TH_UUT/CC/CH/resonance)
+- MARGINS: subplots_adjust values per plot type (left/right shared, top/bottom per type)
+- BACKGROUND: figure and axes colors
+- TICK STYLE: direction, length, width, top/right visibility
+- GRID: on/off, color, linewidth per plot type (TH intentionally off — see known differences)
+- TRS/TRS_ALL: TRS/RRS/0.9RRS/1.3RRS colors+weights+styles, Aflx/Arig/lowCutoff ref lines
+- TIME HISTORY: signal color+weight, Arig threshold color+style, annotation colors
+- CC/CH: pair colors [k,c,m], signal weights, threshold values+colors+styles
+- RESONANCE: curve color+weight, peak marker color/shape/size/edge
+- AXIS RANGES: x/y limits and tick values per plot type
+
+### Files changed
+- `functions/plot_style.py` — complete rewrite (was just font detection + rcParams)
+- `functions/plot_th.py` — imports `from . import plot_style as S`
+- `functions/plot_trs.py` — same
+- `functions/plot_trs_all.py` — same
+- `functions/plot_cc.py` — same
+- `functions/plot_ch.py` — same
+- `functions/plot_transfer.py` — same
+
+All 6 plot functions still pass 113/113 comparison checks at identical pixel diffs.
